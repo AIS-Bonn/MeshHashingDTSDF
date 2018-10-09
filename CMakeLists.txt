@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
 PROJECT(mesh-hashing)
 
+set(CUDA_TOOLKIT_ROOT_DIR "/usr/local/cuda-9.2")
+SET(OpenCV_DIR "/usr/local/share/OpenCV")
+
 #----------
 # C++ version setting
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
@@ -24,7 +27,7 @@ FIND_PACKAGE(GLFW3  REQUIRED)
 FIND_PACKAGE(GLEW   REQUIRED)
 FIND_PACKAGE(OpenGL REQUIRED)
 # CV utilities
-FIND_PACKAGE(OpenCV REQUIRED)
+FIND_PACKAGE(OpenCV 3 REQUIRED)
 FIND_PACKAGE(Eigen3 REQUIRED)
 # Parallel computation
 FIND_PACKAGE(CUDA REQUIRED)
@@ -82,6 +85,7 @@ SET(GL_WRAPPER ${VH}/extern/opengl-wrapper)
 INCLUDE_DIRECTORIES(
         ${VH}
         ${VH}/extern/cuda
+        /opt/ros/kinetic/include
         ${GL_WRAPPER}/include
         ${EIGEN3_INCLUDE_DIR}
         ${GLOG_INCLUDE_DIRS}
@@ -105,7 +109,7 @@ TARGET_LINK_LIBRARIES(gl-util
 
 ### 2. CUDA
 # Don't know exactly how it should be configured
-LIST(APPEND CUDA_NVCC_FLAGS -gencode=arch=compute_50,code=sm_60)
+LIST(APPEND CUDA_NVCC_FLAGS -gencode=arch=compute_30,code=sm_30)
 CUDA_ADD_LIBRARY(mesh-hashing-cuda
         ${VH}/core/hash_table.cu
         ${VH}/core/entry_array.cu
@@ -138,7 +142,7 @@ CUDA_ADD_LIBRARY(mesh-hashing-cuda
 TARGET_LINK_LIBRARIES(mesh-hashing-cuda
         ${CUDA_DEPENDENCIES}
         ${GLOG_LIBRARIES}
-        -lopencv_core -lopencv_highgui -lopencv_imgproc)
+        ${OpenCV_LIBRARIES})
 
 ### 3. C++
 ADD_LIBRARY(mesh-hashing
@@ -168,7 +172,7 @@ SET_TARGET_PROPERTIES(reconstruction
         COMPILE_DEFINITIONS USE_CUDA_GL)
 TARGET_LINK_LIBRARIES(reconstruction
         mesh-hashing
-        -lopencv_core -lopencv_highgui
+        ${OpenCV_LIBRARIES}
         ${GLOG_LIBRARIES})
 
 ADD_EXECUTABLE(slam src/app/slam.cc)
@@ -177,7 +181,7 @@ SET_TARGET_PROPERTIES(slam
         COMPILE_DEFINITIONS USE_CUDA_GL)
 TARGET_LINK_LIBRARIES(slam
         mesh-hashing
-        -lopencv_core -lopencv_highgui
+        ${OpenCV_LIBRARIES}
         ${GLOG_LIBRARIES})
 
 ADD_EXECUTABLE(block_analysis src/app/block_analysis.cc)
@@ -187,7 +191,7 @@ SET_TARGET_PROPERTIES(block_analysis
 TARGET_LINK_LIBRARIES(block_analysis
         gl-util
         mesh-hashing
-        -lopencv_core -lopencv_highgui
+        ${OpenCV_LIBRARIES}
         ${GLOG_LIBRARIES})
 
 ### An ORB app
