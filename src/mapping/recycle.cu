@@ -175,7 +175,7 @@ void RecycleGarbageVerticesKernel(
   __syncthreads();
   if (threadIdx.x == 0 && valid_vertex_count == 0) {
     if (hash_table.FreeEntry(entry.pos)) {
-      blocks[entry.ptr].Clear();
+      blocks.FreeBlock(entry.ptr);
     }
   }
 }

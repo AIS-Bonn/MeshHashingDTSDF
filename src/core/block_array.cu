@@ -9,7 +9,8 @@
 ////////////////////
 __global__
 void BlockArrayResetKernel(
-    Block *blocks,
+    BlockArray blocks,
+    CudaMemoryHeap<VoxelArray> &voxel_array_heap,
     int block_count
 )
 {
@@ -104,25 +105,24 @@ void BlockArray::Resize(uint block_count)
     voxel_array_heap_.Free();
   }
   Alloc(block_count);
-  Reset();
   voxel_array_heap_.Alloc(static_cast<size_t>(block_count));
-  voxel_array_heap_.Reset();
+  Reset();
 }
 
 __host__
 void BlockArray::Reset()
 {
-  const uint threads_per_block = 64;
-
   if (block_count_ == 0) return;
 
+  voxel_array_heap_.Reset();
+
   // NOTE: this block is the parallel unit in CUDA, not the data structure Block
-  const uint blocks = (block_count_ + threads_per_block - 1) / threads_per_block;
+  const uint cuda_blocks = (block_count_ + CUDA_THREADS_PER_BLOCK - 1) / CUDA_THREADS_PER_BLOCK;
 
-  const dim3 grid_size(blocks, 1);
-  const dim3 block_size(threads_per_block, 1);
+  const dim3 grid_size(cuda_blocks, 1);
+  const dim3 block_size(CUDA_THREADS_PER_BLOCK, 1);
 
-  BlockArrayResetKernel << < grid_size, block_size >> > (blocks_, block_count_);
+  BlockArrayResetKernel << < grid_size, block_size >> > (*this, voxel_array_heap_, block_count_);
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());
 }

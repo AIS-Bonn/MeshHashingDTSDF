@@ -39,6 +39,19 @@ public:
     return blocks_[i];
   }
 
+  __device__ void FreeBlock(uint idx) {
+    #pragma unroll 6
+    for (int i = 0; i < 6; i++)
+    {
+      int ptr = blocks_[idx].voxel_array_ptrs[i];
+      if (ptr != FREE_PTR)
+      {
+        voxel_array_heap_.FreeElement(ptr);
+      }
+      blocks_[idx].Clear();
+    }
+  }
+
   __host__ Block* GetGPUPtr() const{
     return blocks_;
   }
