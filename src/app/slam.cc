@@ -23,6 +23,7 @@
 #include <meshing/marching_cubes.h>
 #include <visualization/compress_mesh.h>
 
+#include "app/utils.h"
 #include "sensor/rgbd_data_provider.h"
 #include "sensor/rgbd_sensor.h"
 #include "visualization/ray_caster.h"
@@ -35,6 +36,8 @@
 #define DEBUG_
 
 int main(int argc, char **argv) {
+  CheckCUDADevices();
+
   /// Use this to substitute tedious argv parsing
   RuntimeParams args;
   LoadRuntimeParams("../config/args.yml", args);
