@@ -60,12 +60,12 @@ void HashTable::Alloc(const HashParams &params) {
     bucket_count = params.bucket_count;
     bucket_size = params.bucket_size;
     entry_count = params.entry_count;
-    value_capacity = params.value_capacity;
+    value_capacity = params.max_block_count;
     linked_list_size = params.linked_list_size;
 
     /// Values
     checkCudaErrors(cudaMalloc(&heap_,
-                               sizeof(uint) * params.value_capacity));
+                               sizeof(uint) * params.max_block_count));
     checkCudaErrors(cudaMalloc(&heap_counter_,
                                sizeof(uint)));
 
@@ -145,14 +145,14 @@ void HashTable::ResetMutexes() {
 /// Member function: Others
 //void HashTable::Debug() {
 //  HashEntry *entries = new HashEntry[hash_params_.bucket_size * hash_params_.bucket_count];
-//  uint *heap_ = new uint[hash_params_.value_capacity];
+//  uint *heap_ = new uint[hash_params_.max_block_count];
 //  uint  heap_counter_;
 //
 //  checkCudaErrors(cudaMemcpy(&heap_counter_, heap_counter_, sizeof(uint), cudaMemcpyDeviceToHost));
 //  heap_counter_++; //points to the first free entry: number of blocks is one more
 //
 //  checkCudaErrors(cudaMemcpy(heap_, heap_,
-//                             sizeof(uint) * hash_params_.value_capacity,
+//                             sizeof(uint) * hash_params_.max_block_count,
 //                             cudaMemcpyDeviceToHost));
 //  checkCudaErrors(cudaMemcpy(entries, entries,
 //                             sizeof(HashEntry) * hash_params_.bucket_size * hash_params_.bucket_count,
@@ -190,7 +190,7 @@ void HashTable::ResetMutexes() {
 //
 //  /// Iterate over free heap_
 //  std::unordered_set<uint> free_heap_index;
-//  std::vector<int> free_value_index(hash_params_.value_capacity, 0);
+//  std::vector<int> free_value_index(hash_params_.max_block_count, 0);
 //  for (uint i = 0; i < heap_counter_; i++) {
 //    free_heap_index.insert(heap_[i]);
 //    free_value_index[heap_[i]] = FREE_ENTRY;
@@ -226,7 +226,7 @@ void HashTable::ResetMutexes() {
 //  /// Iterate over values
 //  uint free_value_count = 0;
 //  uint not_free_value_count = 0;
-//  for (uint i = 0; i < hash_params_.value_capacity; i++) {
+//  for (uint i = 0; i < hash_params_.max_block_count; i++) {
 //    if (free_value_index[i] == FREE_ENTRY) {
 //      free_value_count++;
 //    } else if (free_value_index[i] == LOCK_ENTRY) {
@@ -237,7 +237,7 @@ void HashTable::ResetMutexes() {
 //    }
 //  }
 //
-//  if (free_value_count + not_free_value_count == hash_params_.value_capacity)
+//  if (free_value_count + not_free_value_count == hash_params_.max_block_count)
 //    LOG(INFO) << "heap_ OK!";
 //  else {
 //    LOG(ERROR) << "heap_ CORRUPTED";

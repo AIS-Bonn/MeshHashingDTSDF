@@ -16,6 +16,7 @@
 __global__
 void CastKernel(const HashTable hash_table,
                 const BlockArray    blocks,
+                const size_t voxel_array_idx,
                 RayCasterData  ray_caster_data,
                 const RayCasterParams ray_caster_params,
                 const float4x4 c_T_w,
@@ -65,7 +66,7 @@ void CastKernel(const HashTable hash_table,
   for (float t = t_min; t < t_max & !return_flag; t += ray_caster_params.raycast_step) {
     float3 world_sample_pos = world_cam_pos + t * world_ray_dir;
     /// a voxel surrounded by valid voxels
-    if (GetSpatialValue(world_sample_pos, blocks, hash_table,
+    if (GetSpatialValue(world_sample_pos, blocks, voxel_array_idx, hash_table,
                         geometry_helper, &voxel_query)) {
       /// Zero crossing exist
       if (prev_sample.weight > 0 // valid previous sample
@@ -78,7 +79,7 @@ void CastKernel(const HashTable hash_table,
                 world_cam_pos, world_ray_dir,
                 prev_sample.sdf, prev_sample.t,
                 voxel_query.sdf, t,
-                blocks, hash_table,
+                blocks, voxel_array_idx, hash_table,
                 geometry_helper,
                 interpolated_t, interpolated_color);
 
@@ -111,7 +112,7 @@ void CastKernel(const HashTable hash_table,
 
             if (ray_caster_params.enable_gradients) {
               float3 grad;
-              bool valid =  GetSpatialSDFGradient(world_pos_isosurface, blocks,
+              bool valid =  GetSpatialSDFGradient(world_pos_isosurface, blocks, voxel_array_idx,
                                       hash_table, geometry_helper, &grad);
               float l = length(grad);
               float3 normal = l > 0 && valid ? grad / l : make_float3(0);
@@ -188,6 +189,7 @@ void RayCaster::Free() {
 /// Member function: (CPU calling GPU kernels)
 /// Major function, extract surface and normal from the volumes
 void RayCaster::Cast(HashTable& hash_table, BlockArray& blocks,
+                     const size_t voxel_array_idx,
                      RayCasterData& ray_caster_data,
                      GeometryHelper& geometry_helper,
                      const float4x4& c_T_w) {
@@ -203,6 +205,7 @@ void RayCaster::Cast(HashTable& hash_table, BlockArray& blocks,
   CastKernel<<<grid_size, block_size>>>(
       hash_table,
           blocks,
+          voxel_array_idx,
           ray_caster_data,
           ray_caster_params_, c_T_w, w_T_c, geometry_helper);
   checkCudaErrors(cudaDeviceSynchronize());

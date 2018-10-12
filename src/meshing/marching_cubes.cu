@@ -48,16 +48,15 @@ inline int AllocateVertexWithMutex(
 
   if (ptr >= 0) {
     Voxel voxel_query;
-    bool valid = GetSpatialValue(vertex_pos, blocks, hash_table,
-                                 geometry_helper, &voxel_query);
     mesh_unit.vertex_ptrs[vertex_idx] = ptr;
     mesh.vertex(ptr).pos = vertex_pos;
     mesh.vertex(ptr).radius = sqrtf(1.0f / voxel_query.inv_sigma2);
 
+    size_t voxel_array_idx = 0; // FIXME: move/remove/change
     float3 grad;
-    valid = GetSpatialSDFGradient(
+    bool valid = GetSpatialSDFGradient(
         vertex_pos,
-        blocks, hash_table,
+        blocks, voxel_array_idx, hash_table,
         geometry_helper,
         &grad
     );
@@ -89,13 +88,15 @@ void SurfelExtractionKernel(
   int3   voxel_pos = voxel_base_pos + make_int3(offset);
   float3 world_pos = geometry_helper.VoxelToWorld(voxel_pos);
 
+  size_t voxel_array_idx = 0;
+
   MeshUnit &this_mesh_unit = block.mesh_units[threadIdx.x];
-  Voxel& this_voxel = block.voxels[threadIdx.x];
+  Voxel& this_voxel = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[threadIdx.x];
   //////////
   /// 1. Read the scalar values, see mc_tables.h
   const int kVertexCount = 8;
   const float kVoxelSize = geometry_helper.voxel_size;
-  const float kThreshold = 0.20f;
+  const float kThreshold = 0.40f;  // TODO: constant should depend on voxel size
   const float kIsoLevel = 0;
 
   float  d[kVertexCount];
@@ -115,7 +116,7 @@ void SurfelExtractionKernel(
   Voxel voxel_query;
   for (int i = 0; i < kVertexCount; ++i) {
     if (! GetVoxelValue(entry, voxel_pos + kVtxOffset[i],
-                        blocks, hash_table,
+                        blocks, voxel_array_idx, hash_table,
                         geometry_helper, &voxel_query)) {
       return;
     }

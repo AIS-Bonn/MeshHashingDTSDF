@@ -24,6 +24,7 @@ __device__
 inline bool GetSpatialValue(
     const float3 &pos,
     const BlockArray &blocks,
+    const size_t voxel_array_idx,
     const HashTable &hash_table,
     GeometryHelper &geometry_helper,
     Voxel* voxel
@@ -45,7 +46,7 @@ inline bool GetSpatialValue(
     // 0 --> 1 - r, 1 --> r
     float3 r = (make_float3(1.0f) - mask) * (make_float3(1.0) - ratio)
                + (mask) * ratio;
-    bool valid = GetVoxelValue(pos_corner + mask * offset, blocks, hash_table,
+    bool valid = GetVoxelValue(pos_corner + mask * offset, blocks, voxel_array_idx, hash_table,
                                geometry_helper, &voxel_query);
     if (! valid) return false;
     float w = r.x * r.y * r.z;
@@ -69,6 +70,7 @@ __device__
 inline bool GetSpatialSDFGradient(
     const float3 &pos,
     const BlockArray &blocks,
+    const size_t voxel_array_idx,
     const HashTable &hash_table,
     GeometryHelper &geometry_helper,
     float3* grad
@@ -82,10 +84,10 @@ inline bool GetSpatialSDFGradient(
 #pragma unroll 1
   for (int i = 0; i < 3; ++i) {
     float3 dpos = grad_masks[i] * offset;
-    valid = valid && GetSpatialValue(pos - dpos, blocks, hash_table,
+    valid = valid && GetSpatialValue(pos - dpos, blocks, voxel_array_idx, hash_table,
                                      geometry_helper, &voxel_query);
     sdfn[i] = voxel_query.sdf;
-    valid = valid && GetSpatialValue(pos + dpos, blocks, hash_table,
+    valid = valid && GetSpatialValue(pos + dpos, blocks, voxel_array_idx, hash_table,
                                      geometry_helper, &voxel_query);
     sdfp[i] = voxel_query.sdf;
   }

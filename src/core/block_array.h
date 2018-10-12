@@ -6,6 +6,7 @@
 #define CORE_BLOCK_ARRAY_H
 
 #include "core/block.h"
+#include "core/cuda_memory_heap.h"
 
 // Pre-allocated blocks to store the map
 class BlockArray {
@@ -27,6 +28,10 @@ public:
 
   __host__ void Reset();
 
+  __device__ int AllocateVoxelArrayWithMutex(const uint &block_idx, const size_t &voxel_array_idx);
+
+  __device__ VoxelArray &GetVoxelArray (uint block_idx, size_t voxel_array_idx) const;
+
   __host__ __device__ Block& operator[] (uint i) {
     return blocks_[i];
   }
@@ -41,6 +46,9 @@ private:
   bool is_allocated_on_gpu_ = false;
   // @param array
   Block*  blocks_;
+
+  CudaMemoryHeap<VoxelArray> voxel_array_heap_;
+
   // @param const element
   uint    block_count_;
 };

@@ -80,7 +80,8 @@ void MainEngine::Localizing(Sensor &sensor, int iters, float4x4& gt) {
     mat6x6 A;
     mat6x1 b;
     int count;
-    float error = PointToSurface(blocks_, sensor,
+    size_t voxel_array_idx = 0;
+    float error = PointToSurface(blocks_, voxel_array_idx, sensor,
                                  hash_table_, geometry_helper_,
                                  A, b, count);
     if (count == 0) {
@@ -111,11 +112,15 @@ void MainEngine::Mapping(Sensor &sensor) {
       candidate_entries_
   );
 
+
+  size_t voxel_array_idx = 0;
+
   double update_time = 0;
   if (!map_engine_.enable_bayesian_update()) {
     LOG(INFO) << "Simple update";
     update_time = UpdateBlocksSimple(candidate_entries_,
                                      blocks_,
+                                     voxel_array_idx,
                                      sensor,
                                      hash_table_,
                                      geometry_helper_);
@@ -129,6 +134,7 @@ void MainEngine::Mapping(Sensor &sensor) {
     float predict_seconds = PredictOutlierRatio(
         candidate_entries_,
         blocks_,
+        voxel_array_idx,
         mesh_,
         sensor,
         hash_table_,
@@ -137,6 +143,7 @@ void MainEngine::Mapping(Sensor &sensor) {
     update_time = UpdateBlocksBayesian(
         candidate_entries_,
         blocks_,
+        voxel_array_idx,
         sensor,
         hash_table_,
         geometry_helper_
@@ -328,7 +335,7 @@ MainEngine::MainEngine(
 
   hash_table_.Resize(hash_params);
   candidate_entries_.Resize(hash_params.entry_count);
-  blocks_.Resize(hash_params.value_capacity);
+  blocks_.Resize(hash_params.max_block_count);
 
   mesh_.Resize(mesh_params);
 
@@ -387,7 +394,7 @@ void MainEngine::ConfigVisualizingEngine(
   }
 
   if (enable_bounding_box) {
-    vis_engine_.InitBoundingBoxData(hash_params_.value_capacity*24);
+    vis_engine_.InitBoundingBoxData(hash_params_.max_block_count*24);
   }
   if (enable_trajectory) {
     vis_engine_.InitTrajectoryData(80000);
@@ -415,7 +422,7 @@ void MainEngine::ConfigLoggingEngine(
 void MainEngine::RecordBlocks(std::string prefix) {
   //CollectAllBlocks(hash_table_, candidate_entries_);
   BlockMap block_map = log_engine_.RecordBlockToMemory(
-      blocks_.GetGPUPtr(), hash_params_.value_capacity,
+      blocks_.GetGPUPtr(), hash_params_.max_block_count,
       candidate_entries_.GetGPUPtr(), candidate_entries_.count());
 
   std::stringstream ss("");

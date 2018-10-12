@@ -24,6 +24,7 @@ inline bool BisectionIntersection(
     float sdf_near, float t_near,
     float sdf_far, float t_far,
     const BlockArray &blocks,
+    const size_t voxel_array_idx,
     const HashTable &hash_table,
     GeometryHelper& geometry_helper,
     float &t, uchar3 &color) {
@@ -37,6 +38,7 @@ inline bool BisectionIntersection(
     m = LinearIntersection(l, r, l_sdf, r_sdf);
     if (!GetSpatialValue(world_cam_pos + m * world_cam_dir,
                          blocks,
+                         voxel_array_idx,
                          hash_table,
                          geometry_helper,
                          &voxel_query))

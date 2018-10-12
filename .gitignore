@@ -31,8 +31,10 @@
 *.out
 *.app
 
+build/
 # CLion
 cmake-build-release/
+cmake-build-relwithdebinfo/
 cmake-build-debug/
 bin/
 lib/

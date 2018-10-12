@@ -28,6 +28,7 @@ inline Voxel &GetVoxelRef(
     const HashEntry &curr_entry,
     const int3 voxel_pos,
     BlockArray &blocks,
+    const size_t voxel_array_idx,
     const HashTable &hash_table,
     GeometryHelper &geometry_helper
 ) {
@@ -36,14 +37,14 @@ inline Voxel &GetVoxelRef(
 
   if (curr_entry.pos == block_pos) {
     uint i = geometry_helper.VectorizeOffset(offset);
-    return blocks[curr_entry.ptr].voxels[i];
+    return blocks.GetVoxelArray(curr_entry.ptr, voxel_array_idx).voxels[i];
   } else {
     HashEntry entry = hash_table.GetEntry(block_pos);
     if (entry.ptr == FREE_ENTRY) {
       printf("GetVoxelRef: should never reach here!\n");
     }
     uint i = geometry_helper.VectorizeOffset(offset);
-    return blocks[entry.ptr].voxels[i];
+    return blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[i];
   }
 }
 
@@ -80,6 +81,7 @@ inline bool GetVoxelValue(
     const HashEntry &curr_entry,
     const int3 voxel_pos,
     const BlockArray &blocks,
+    const size_t voxel_array_idx,
     const HashTable &hash_table,
     GeometryHelper &geometry_helper,
     Voxel* voxel) {
@@ -88,12 +90,12 @@ inline bool GetVoxelValue(
 
   if (curr_entry.pos == block_pos) {
     uint i = geometry_helper.VectorizeOffset(offset);
-    *voxel = blocks[curr_entry.ptr].voxels[i];
+    *voxel = blocks.GetVoxelArray(curr_entry.ptr, voxel_array_idx).voxels[i];
   } else {
     HashEntry entry = hash_table.GetEntry(block_pos);
     if (entry.ptr == FREE_ENTRY) return false;
     uint i = geometry_helper.VectorizeOffset(offset);
-    *voxel = blocks[entry.ptr].voxels[i];
+    *voxel = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[i];
   }
   return true;
 }
@@ -102,6 +104,7 @@ __device__
 inline bool GetVoxelValue(
     const float3 world_pos,
     const BlockArray &blocks,
+    const size_t voxel_array_idx,
     const HashTable &hash_table,
     GeometryHelper &geometry_helper,
     Voxel* voxel
@@ -118,7 +121,7 @@ inline bool GetVoxelValue(
     return false;
   } else {
     uint i = geometry_helper.VectorizeOffset(offset);
-    const Voxel& v = blocks[entry.ptr].voxels[i];
+    const Voxel& v = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[i];
     voxel->sdf = v.sdf;
     voxel->inv_sigma2 = v.inv_sigma2;
     voxel->color = v.color;

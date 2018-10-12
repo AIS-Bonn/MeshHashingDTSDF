@@ -20,7 +20,7 @@ struct HashParams {
   uint  entry_count;                // bucket_count * bucket_size
   uint  linked_list_size;           // 7
 
-  uint  value_capacity;             // 1000000
+  uint  max_block_count;            // 1000000
 };
 
 struct MeshParams {
@@ -77,6 +77,8 @@ struct SensorParams {
 struct RuntimeParams {
   int  dataset_type;
   bool enable_bayesian_update;
+
+  bool enable_directional_sdf;
 
   bool enable_navigation;
   bool enable_polygon_mode;

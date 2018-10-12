@@ -28,7 +28,7 @@ public:
   __host__ void Alloc(const HashParams &params);
   __host__ void Free();
 
-  __host__ void Resize(const HashParams &params);
+__host__ void Resize(const HashParams &params);
   __host__ void Reset();
   __host__ void ResetMutexes();
 

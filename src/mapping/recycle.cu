@@ -19,9 +19,9 @@ void StarveOccupiedBlocksKernel(
 ) {
   const uint idx = blockIdx.x;
   const HashEntry& entry = candidate_entries[idx];
-  float inv_sigma2 = blocks[entry.ptr].voxels[threadIdx.x].inv_sigma2;
+  float inv_sigma2 = blocks.GetVoxelArray(entry.ptr, 0).voxels[threadIdx.x].inv_sigma2;
   inv_sigma2 = fmaxf(0, inv_sigma2 - 1.0f);
-  blocks[entry.ptr].voxels[threadIdx.x].inv_sigma2 = inv_sigma2;
+  blocks.GetVoxelArray(entry.ptr, 0).voxels[threadIdx.x].inv_sigma2 = inv_sigma2;
 }
 
 /// Collect dead voxels
@@ -35,8 +35,8 @@ void CollectGarbageBlockArrayKernel(
   const uint idx = blockIdx.x;
   const HashEntry& entry = candidate_entries[idx];
 
-  Voxel v0 = blocks[entry.ptr].voxels[2*threadIdx.x+0];
-  Voxel v1 = blocks[entry.ptr].voxels[2*threadIdx.x+1];
+  const Voxel &v0 = blocks.GetVoxelArray(entry.ptr,0).voxels[2*threadIdx.x+0];
+  const Voxel &v1 = blocks.GetVoxelArray(entry.ptr,0).voxels[2*threadIdx.x+1];
 
   float sdf0 = v0.sdf, sdf1 = v1.sdf;
   if (v0.inv_sigma2 < EPSILON)	sdf0 = PINF;
@@ -126,7 +126,7 @@ void RecycleGarbageTrianglesKernel(
 
   const HashEntry& entry = candidate_entries[idx];
   const uint local_idx = threadIdx.x;  //inside an SDF block
-  Voxel &voxel = blocks[entry.ptr].voxels[local_idx];
+  Voxel &voxel = blocks.GetVoxelArray(entry.ptr, 0).voxels[local_idx];
   MeshUnit &mesh_unit = blocks[entry.ptr].mesh_units[local_idx];
 
   for (int i = 0; i < N_TRIANGLE; ++i) {

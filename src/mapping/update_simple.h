@@ -21,6 +21,7 @@
 double UpdateBlocksSimple(
     EntryArray& candidate_entries,
     BlockArray& blocks,
+    const size_t voxel_array_idx,
     Sensor& sensor,
     HashTable& hash_table,
     GeometryHelper& geometry_helper

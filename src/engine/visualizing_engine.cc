@@ -267,6 +267,7 @@ void VisualizingEngine::RenderRayCaster(
 ) {
   ray_caster_.Cast(hash_table,
                    blocks,
+                   0,
                    ray_caster_.data(),
                    geometry_helper,
                    view);

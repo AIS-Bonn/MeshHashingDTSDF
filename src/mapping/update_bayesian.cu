@@ -37,6 +37,7 @@ __global__
 void PredictOutlierRatioKernel(
     EntryArray candidate_entries,
     BlockArray blocks,
+    const size_t voxel_array_idx,
     Mesh mesh,
     SensorData sensor_data,
     SensorParams sensor_params,
@@ -49,7 +50,7 @@ void PredictOutlierRatioKernel(
   uint local_idx = threadIdx.x;  //inside of an SDF block
   int3 voxel_pos = voxel_base_pos + make_int3(geometry_helper.DevectorizeIndex(local_idx));
 
-  Voxel &this_voxel = blocks[entry.ptr].voxels[local_idx];
+  Voxel &this_voxel = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[local_idx];
   MeshUnit &this_mesh_unit = blocks[entry.ptr].mesh_units[local_idx];
 
   /// 2. Project to camera
@@ -104,6 +105,7 @@ __global__
 void UpdateBlocksBayesianKernel(
     EntryArray candidate_entries,
     BlockArray blocks,
+    const size_t voxel_array_idx,
     SensorData sensor_data,
     SensorParams sensor_params,
     float4x4 cTw,
@@ -117,7 +119,7 @@ void UpdateBlocksBayesianKernel(
   uint local_idx = threadIdx.x;  //inside of an SDF block
   int3 voxel_pos = voxel_base_pos + make_int3(geometry_helper.DevectorizeIndex(local_idx));
 
-  Voxel &this_voxel = blocks[entry.ptr].voxels[local_idx];
+  Voxel &this_voxel = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[local_idx];
   /// 2. Project to camera
   float3 world_pos = geometry_helper.VoxelToWorld(voxel_pos);
   float3 camera_pos = cTw * world_pos;
@@ -191,6 +193,7 @@ __global__
 void BuildSensorDataEquationKernel(
     EntryArray candidate_entries,
     BlockArray blocks,
+    const size_t voxel_array_idx,
     Mesh mesh,
     SensorData sensor_data,
     SensorParams params,
@@ -206,7 +209,7 @@ void BuildSensorDataEquationKernel(
   uint local_idx = threadIdx.x;  //inside of an SDF block
   int3 voxel_pos = voxel_base_pos + make_int3(geometry_helper.DevectorizeIndex(local_idx));
 
-  Voxel &this_voxel = blocks[entry.ptr].voxels[local_idx];
+  Voxel &this_voxel = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[local_idx];
   MeshUnit &mesh_unit = blocks[entry.ptr].mesh_units[local_idx];
 
   /// 2. Project to camera
@@ -265,6 +268,7 @@ void BuildSensorDataEquationKernel(
 float PredictOutlierRatio(
     EntryArray& candidate_entries,
     BlockArray& blocks,
+    const size_t voxel_array_idx,
     Mesh& mesh,
     Sensor& sensor,
     HashTable& hash_table,
@@ -282,6 +286,7 @@ float PredictOutlierRatio(
   PredictOutlierRatioKernel << < grid_size, block_size >> > (
       candidate_entries,
           blocks,
+          voxel_array_idx,
           mesh,
           sensor.data(),
           sensor.sensor_params(),
@@ -298,6 +303,7 @@ float PredictOutlierRatio(
 float UpdateBlocksBayesian(
   EntryArray &candidate_entries,
   BlockArray &blocks,
+  const size_t voxel_array_idx,
   Sensor &sensor,
   HashTable &hash_table,
   GeometryHelper &geometry_helper
@@ -315,6 +321,7 @@ float UpdateBlocksBayesian(
   UpdateBlocksBayesianKernel << < grid_size, block_size >> > (
       candidate_entries,
           blocks,
+          voxel_array_idx,
           sensor.data(),
           sensor.sensor_params(),
           sensor.cTw(),
@@ -328,6 +335,7 @@ float UpdateBlocksBayesian(
 void BuildSensorDataEquation(
     EntryArray &candidate_entries,
     BlockArray &blocks,
+    const size_t voxel_array_idx,
     Mesh &mesh,
     Sensor &sensor,
     HashTable &hash_table,
@@ -345,6 +353,7 @@ void BuildSensorDataEquation(
   BuildSensorDataEquationKernel << < grid_size, block_size >> > (
       candidate_entries,
           blocks,
+          voxel_array_idx,
           mesh,
           sensor.data(),
           sensor.sensor_params(),

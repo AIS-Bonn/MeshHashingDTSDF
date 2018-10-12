@@ -108,9 +108,10 @@ TARGET_LINK_LIBRARIES(gl-util
         ${GLOG_LIBRARIES})
 
 ### 2. CUDA
-# Don't know exactly how it should be configured
+set(CUDA_SEPARABLE_COMPILATION ON) # enable splitting code in .h and .cu files (otherwise linking issues)
 LIST(APPEND CUDA_NVCC_FLAGS -gencode=arch=compute_30,code=sm_30)
 CUDA_ADD_LIBRARY(mesh-hashing-cuda
+        ${VH}/core/cuda_memory_heap.cu
         ${VH}/core/hash_table.cu
         ${VH}/core/entry_array.cu
         ${VH}/core/block_array.cu
@@ -127,7 +128,7 @@ CUDA_ADD_LIBRARY(mesh-hashing-cuda
         ${VH}/mapping/recycle.cu
 
         ${VH}/optimize/linear_equations.cu
-        ${VH}/optimize/primal_dual.cu
+#        ${VH}/optimize/primal_dual.cu
 
         ${VH}/meshing/marching_cubes.cu
 
@@ -137,7 +138,8 @@ CUDA_ADD_LIBRARY(mesh-hashing-cuda
         ${VH}/visualization/trajectory.cu
         ${VH}/visualization/compress_mesh.cu
         ${VH}/visualization/extract_bounding_box.cu
-        ${VH}/visualization/ray_caster.cu)
+        ${VH}/visualization/ray_caster.cu
+  )
 
 TARGET_LINK_LIBRARIES(mesh-hashing-cuda
         ${CUDA_DEPENDENCIES}

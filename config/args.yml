@@ -4,16 +4,18 @@
 # 4   - SUN3D
 # 5   - SUN3D_ORIGINAL
 # 6   - PKU
-dataset_type:    4
+dataset_type:    3
 
 # -----------
-enable_bayesian_update: 1
+enable_bayesian_update: 0
+
+enable_directional_sdf: 1
 
 enable_sdf_gradient:    1
 enable_polygon_mode:    0
 
 enable_color:           0
-enable_navigation:      1
+enable_navigation:      0
 enable_global_mesh:     1
 enable_bounding_box:    0
 enable_trajectory:      0

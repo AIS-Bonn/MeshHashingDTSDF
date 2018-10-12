@@ -16,6 +16,7 @@ void LoadRuntimeParams(std::string path, RuntimeParams& params) {
   params.dataset_type  = (int)fs["dataset_type"];
 
   params.enable_bayesian_update = (int)fs["enable_bayesian_update"];
+  params.enable_directional_sdf = (int)fs["enable_directional_sdf"];
   params.enable_navigation   = (int)fs["enable_navigation"];
   params.enable_polygon_mode = (int)fs["enable_polygon_mode"];
   params.enable_global_mesh = (int)fs["enable_global_mesh"];
@@ -41,7 +42,7 @@ void LoadHashParams(std::string path, HashParams& params) {
   params.bucket_size      = (int)fs["bucket_size"];
   params.entry_count      = (int)fs["count"];
   params.linked_list_size = (int)fs["linked_list_size"];
-  params.value_capacity   = (int)fs["value_capacity"];
+  params.max_block_count   = (int)fs["max_block_count"];
 }
 
 void LoadMeshParams(std::string path, MeshParams &params) {
@@ -100,7 +101,7 @@ void LoadICL(std::string               dataset_path,
     color_image_list.push_back(dataset_path + "/" + color_image_name);
   }
 
-  std::ifstream traj_stream(dataset_path + "traj0.gt.freiburg");
+  std::ifstream traj_stream(dataset_path + "livingRoom3n.gt.freiburg");
   std::string ts_img, img_path, ts_gt;
   float tx, ty, tz, qx, qy, qz, qw;
   float4x4 rTl;

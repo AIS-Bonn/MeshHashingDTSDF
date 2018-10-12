@@ -47,65 +47,17 @@ private:
   uint*     triangle_heap_counter_;
   Triangle* triangles;
 
-#ifdef __CUDACC__
 public:
-  __device__
-  uint AllocVertex() {
-    uint addr = atomicSub(&vertex_heap_counter_[0], 1);
-    if (addr < MEMORY_LIMIT) {
-      printf("vertex heap: %d -> %d\n", addr, vertex_heap_[addr]);
-    }
-    return vertex_heap_[addr];
-  }
-  __device__
-  void FreeVertex(uint ptr) {
-    uint addr = atomicAdd(&vertex_heap_counter_[0], 1);
-    vertex_heap_[addr + 1] = ptr;
-  }
-
-  __device__
-  uint AllocTriangle() {
-    uint addr = atomicSub(&triangle_heap_counter_[0], 1);
-    if (addr < MEMORY_LIMIT) {
-      printf("triangle heap: %d -> %d\n", addr, triangle_heap_[addr]);
-    }
-    return triangle_heap_[addr];
-  }
-  __device__
-  void FreeTriangle(uint ptr) {
-    uint addr = atomicAdd(&triangle_heap_counter_[0], 1);
-    triangle_heap_[addr + 1] = ptr;
-  }
+  __device__ uint AllocVertex();
+  __device__ void FreeVertex(uint ptr);
+  __device__ uint AllocTriangle();
+  __device__ void FreeTriangle(uint ptr);
 
   /// Release is NOT always a FREE operation
-  __device__
-  void ReleaseTriangle(Triangle& triangle) {
-    int3 vertex_ptrs = triangle.vertex_ptrs;
-    atomicSub(&vertices[vertex_ptrs.x].ref_count, 1);
-    atomicSub(&vertices[vertex_ptrs.y].ref_count, 1);
-    atomicSub(&vertices[vertex_ptrs.z].ref_count, 1);
-  }
+  __device__ void ReleaseTriangle(Triangle& triangle);
+  __device__ void AssignTriangle(Triangle& triangle, int3 vertex_ptrs);
+  __device__ void ComputeTriangleNormal(Triangle& triangle);
 
-  __device__
-  void AssignTriangle(Triangle& triangle, int3 vertex_ptrs) {
-    triangle.vertex_ptrs = vertex_ptrs;
-    atomicAdd(&vertices[vertex_ptrs.x].ref_count, 1);
-    atomicAdd(&vertices[vertex_ptrs.y].ref_count, 1);
-    atomicAdd(&vertices[vertex_ptrs.z].ref_count, 1);
-  }
-
-  __device__
-  void ComputeTriangleNormal(Triangle& triangle) {
-    int3 vertex_ptrs = triangle.vertex_ptrs;
-    float3 p0 = vertices[vertex_ptrs.x].pos;
-    float3 p1 = vertices[vertex_ptrs.y].pos;
-    float3 p2 = vertices[vertex_ptrs.z].pos;
-    float3 n = normalize(cross(p2 - p0, p1 - p0));
-    vertices[vertex_ptrs.x].normal = n;
-    vertices[vertex_ptrs.y].normal = n;
-    vertices[vertex_ptrs.z].normal = n;
-  }
-#endif // __CUDACC__
   MeshParams mesh_params_;
 
 };

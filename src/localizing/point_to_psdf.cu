@@ -19,6 +19,7 @@ void AtomicAdd(matNxM<N, M> *A, const matNxM<N, M> dA) {
 __global__
 void PointToSurfaceKernel(
     BlockArray blocks,
+    size_t voxel_array_idx,
     SensorData sensor_data,
     SensorParams sensor_params,
     float4x4 wTc,
@@ -51,13 +52,13 @@ void PointToSurfaceKernel(
                                                             sensor_params.cy);
   float3 point_world = wTc * point_cam;
   Voxel voxel;
-  bool valid = GetSpatialValue(point_world, blocks, hash_table,
+  bool valid = GetSpatialValue(point_world, blocks, voxel_array_idx, hash_table,
                                geometry_helper, &voxel);
   if (!valid) return;
   float d = voxel.sdf;
 
   float3 grad;
-  valid = GetSpatialSDFGradient(point_world, blocks, hash_table,
+  valid = GetSpatialSDFGradient(point_world, blocks, voxel_array_idx, hash_table,
                                 geometry_helper, &grad);
   if (! valid) return;
 
@@ -82,6 +83,7 @@ void PointToSurfaceKernel(
 }
 
 float PointToSurface(BlockArray &blocks,
+                     size_t vertex_array_idx,
                      Sensor &sensor,
                      HashTable &hash_table,
                      GeometryHelper &geometry_helper,
@@ -121,6 +123,7 @@ float PointToSurface(BlockArray &blocks,
 
   PointToSurfaceKernel << < grid_size, block_size >> > (
       blocks,
+          vertex_array_idx,
           sensor.data(),
           sensor.sensor_params(),
           sensor.wTc(),

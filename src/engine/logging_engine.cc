@@ -160,13 +160,13 @@ LoggingEngine::WriteFormattedBlocks(const BlockMap &blocks, std::string filename
     int cols = BLOCK_SIDE_LENGTH * BLOCK_SIDE_LENGTH;
     for (int i = 0; i < BLOCK_SIDE_LENGTH; ++i)
       for (int j = 0; j < cols; ++j) {
-        file << std::setw(6) << block.second.voxels[i * cols + j].sdf;
+        file << std::setw(6) << block.second.voxel_arrays[0]->voxels[i * cols + j].sdf;
         file << (j != cols - 1 ? ' ' : '\n');
       }
     file << std::endl;
     for (int i = 0; i < BLOCK_SIDE_LENGTH; ++i)
       for (int j = 0; j < cols; ++j) {
-        file << std::setw(6) << block.second.voxels[i * cols + j].inv_sigma2;
+        file << std::setw(6) << block.second.voxel_arrays[0]->voxels[i * cols + j].inv_sigma2;
         file << (j != cols - 1 ? ' ' : '\n');
       }
     file << std::endl;
@@ -192,9 +192,9 @@ BlockMap LoggingEngine::ReadFormattedBlocks(std::string filename) {
     int size = BLOCK_SIDE_LENGTH * BLOCK_SIDE_LENGTH * BLOCK_SIDE_LENGTH;
     block.Clear();
     for (int i = 0; i < size; ++i)
-      file >> block.voxels[i].sdf;
+      file >> block.voxel_arrays[0]->voxels[i].sdf;
     for (int i = 0; i < size; ++i)
-      file >> block.voxels[i].inv_sigma2;
+      file >> block.voxel_arrays[0]->voxels[i].inv_sigma2;
     if (file.bad()) {
       LOG(ERROR) << " can't read the whole format block file.";
       return blocks;

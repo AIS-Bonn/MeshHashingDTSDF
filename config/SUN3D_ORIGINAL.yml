@@ -7,7 +7,7 @@ bucket_count:      400000
 bucket_size:       10
 count:       4000000
 linked_list_size:  7
-value_capacity:    100000
+max_block_count:    100000
 
 # SDF params
 voxel_size:                0.008

@@ -36,6 +36,7 @@ public:
 
   void Cast(HashTable& hash_table,
             BlockArray& blocks,
+            size_t vertex_array_idx,
             RayCasterData &ray_caster_data,
             GeometryHelper& geometry_helper,
             const float4x4& c_T_w);

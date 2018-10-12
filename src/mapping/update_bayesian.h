@@ -33,6 +33,7 @@ void BuildSensorDataEquation(
 float UpdateBlocksBayesian(
     EntryArray &candidate_entries,
     BlockArray &blocks,
+    const size_t voxel_array_idx,
     Sensor &sensor,
     HashTable &hash_table,
     GeometryHelper &geometry_helper
@@ -41,6 +42,7 @@ float UpdateBlocksBayesian(
 float PredictOutlierRatio(
     EntryArray& candidate_entries,
     BlockArray& blocks,
+    const size_t voxel_array_idx,
     Mesh& mesh,
     Sensor& sensor,
     HashTable& hash_table,
