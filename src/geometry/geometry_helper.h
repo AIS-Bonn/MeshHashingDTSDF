@@ -160,7 +160,7 @@ struct GeometryHelper {
   }
 
   __host__ __device__
-  inline
+  static inline
   float3 ImageReprojectToCamera(
       uint ux, uint uy, float depth,
       float fx, float fy, float cx, float cy) {

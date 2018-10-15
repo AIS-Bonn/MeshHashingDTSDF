@@ -1,5 +1,6 @@
 #include <opencv2/opencv.hpp>
 #include <helper_cuda.h>
+#include <geometry/geometry_helper.h>
 #include <device_launch_parameters.h>
 #include <extern/cuda/helper_cuda.h>
 #include "core/params.h"
@@ -9,10 +10,11 @@
 
 __global__
 void ResetInlierRatioKernel(
-    float* inlier_ratio,
+    float *inlier_ratio,
     int width,
     int height
-) {
+)
+{
   const int x = blockIdx.x * blockDim.x + threadIdx.x;
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -29,7 +31,8 @@ void ConvertDepthFormatKernel(
     float range_factor,
     float min_depth_range,
     float max_depth_range
-) {
+)
+{
   const int x = blockIdx.x * blockDim.x + threadIdx.x;
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -43,7 +46,8 @@ void ConvertDepthFormatKernel(
 
 __global__
 void ConvertColorFormatKernel(float4 *dst, uchar4 *src,
-                              uint width, uint height) {
+                              uint width, uint height)
+{
   const int x = blockIdx.x * blockDim.x + threadIdx.x;
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -57,45 +61,93 @@ void ConvertColorFormatKernel(float4 *dst, uchar4 *src,
                       : make_float4(MINF, MINF, MINF, MINF);
 }
 
+__device__
+size_t GetArrayIndex(int x, int y, int width)
+{
+  return static_cast<size_t>(y * width + x);
+}
+
+__global__
+void ComputeNormalMapKernel(float3 *normal, float *depth,
+                            uint width, uint height,
+                            float fx, float fy, float cx, float cy)
+{
+  const int ux = blockIdx.x * blockDim.x + threadIdx.x;
+  const int uy = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (ux < 1 or uy < 1 or ux + 1 >= width or uy + 1 >= height)
+    return;
+
+  const size_t idx = GetArrayIndex(ux, uy, width);
+
+  float3 points[5];
+  static const int coords[2][5] = {{0, -1, 0,  1, 0},
+                                 {0, 0,  -1, 0, +1}};
+#pragma unroll 5
+  for (int i = 0; i < 5; i++)
+  {
+    int u = ux + coords[0][i];
+    int v = uy + coords[1][i];
+    float depth_value = depth[GetArrayIndex(u, v, width)];
+    if (depth_value == 0.0f or depth_value == MINF)
+    {
+      normal[idx] = make_float3(0);
+      return;
+    }
+    points[i] = GeometryHelper::ImageReprojectToCamera(u, v, depth_value, fx, fy, cx, cy);
+  }
+
+#pragma unroll 4
+  for (int i = 0; i < 4; i++)
+  {
+    normal[idx] += normalize(cross(points[i + 1] - points[0],
+                                 points[((i + 1) % 4) + 1] - points[0]));
+  }
+
+  normal[idx] = normalize(normal[idx]);
+}
+
 //////////
 /// Member function: (CPU calling GPU kernels)
 __host__
 void ResetInlierRatio(
-    float* inlier_ratio,
-    SensorParams& params
-) {
+    float *inlier_ratio,
+    SensorParams &params
+)
+{
   uint width = params.width;
   uint height = params.height;
 
   const uint threads_per_block = 16;
-  const dim3 grid_size((width + threads_per_block - 1)/threads_per_block,
-                       (height + threads_per_block - 1)/threads_per_block);
+  const dim3 grid_size((width + threads_per_block - 1) / threads_per_block,
+                       (height + threads_per_block - 1) / threads_per_block);
   const dim3 block_size(threads_per_block, threads_per_block);
-  ResetInlierRatioKernel<<<grid_size, block_size>>>(
+  ResetInlierRatioKernel << < grid_size, block_size >> > (
       inlier_ratio, width, height);
 }
 
 __host__
 void ConvertDepthFormat(
-    cv::Mat& depth_img,
-    short* depth_buffer,
-    float* depth_data,
-    SensorParams& params
-) {
+    cv::Mat &depth_img,
+    short *depth_buffer,
+    float *depth_data,
+    SensorParams &params
+)
+{
   /// First copy cpu data in to cuda short
   uint width = params.width;
   uint height = params.height;
   uint image_size = width * height;
 
-  checkCudaErrors(cudaMemcpy(depth_buffer, (short *)depth_img.data,
+  checkCudaErrors(cudaMemcpy(depth_buffer, (short *) depth_img.data,
                              sizeof(short) * image_size,
                              cudaMemcpyHostToDevice));
 
   const uint threads_per_block = 16;
-  const dim3 grid_size((width + threads_per_block - 1)/threads_per_block,
-                       (height + threads_per_block - 1)/threads_per_block);
+  const dim3 grid_size((width + threads_per_block - 1) / threads_per_block,
+                       (height + threads_per_block - 1) / threads_per_block);
   const dim3 block_size(threads_per_block, threads_per_block);
-  ConvertDepthFormatKernel<<<grid_size, block_size>>>(
+  ConvertDepthFormatKernel << < grid_size, block_size >> > (
       depth_data,
           depth_buffer,
           width, height,
@@ -107,10 +159,11 @@ void ConvertDepthFormat(
 __host__
 void ConvertColorFormat(
     cv::Mat &color_img,
-    uchar4* color_buffer,
-    float4* color_data,
-    SensorParams& params
-) {
+    uchar4 *color_buffer,
+    float4 *color_data,
+    SensorParams &params
+)
+{
 
   uint width = params.width;
   uint height = params.height;
@@ -121,14 +174,37 @@ void ConvertColorFormat(
                              cudaMemcpyHostToDevice));
 
   const int threads_per_block = 16;
-  const dim3 grid_size((width + threads_per_block - 1)/threads_per_block,
-                       (height + threads_per_block - 1)/threads_per_block);
+  const dim3 grid_size((width + threads_per_block - 1) / threads_per_block,
+                       (height + threads_per_block - 1) / threads_per_block);
   const dim3 block_size(threads_per_block, threads_per_block);
 
-  ConvertColorFormatKernel <<<grid_size, block_size>>>(
+  ConvertColorFormatKernel << < grid_size, block_size >> > (
       color_data,
           color_buffer,
           width,
           height);
 }
 
+__host__
+void ComputeNormalMap(
+    float *depth_data,
+    float3 *normal_data,
+    SensorParams &params
+)
+{
+  uint width = params.width;
+  uint height = params.height;
+
+  const int threads_per_block = 16;
+  const dim3 grid_size((width + threads_per_block - 1) / threads_per_block,
+                       (height + threads_per_block - 1) / threads_per_block);
+  const dim3 block_size(threads_per_block, threads_per_block);
+
+  ComputeNormalMapKernel << < grid_size, block_size >> > (
+      normal_data,
+          depth_data,
+          width,
+          height,
+          params.fx, params.fy, params.cx, params.cy
+  );
+}

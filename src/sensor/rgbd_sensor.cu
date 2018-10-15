@@ -1,14 +1,16 @@
 /// 16 threads per block
 
 #include "rgbd_sensor.h"
-#include "geometry/geometry_helper.h"
-#include "visualization/color_util.h"
-#include <helper_cuda.h>
-#include <helper_math.h>
-#include <glog/logging.h>
-#include <driver_types.h>
 #include <extern/cuda/helper_cuda.h>
-#include "sensor/preprocess.h"
+#include <extern/cuda/helper_cuda.h>
+#include <extern/cuda/helper_math.h>
+#include <geometry/geometry_helper.h>
+#include <sensor/preprocess.h>
+#include <util/debugging.hpp>
+#include <visualization/color_util.h>
+
+#include <driver_types.h>
+#include <glog/logging.h>
 
 
 /// Member functions: (CPU code)
@@ -120,8 +122,11 @@ int Sensor::Process(cv::Mat &depth, cv::Mat &color) {
   /// Disable all filters at current
   ConvertDepthFormat(depth, data_.depth_buffer, data_.depth_data, params_);
   ConvertColorFormat(color, data_.color_buffer, data_.color_data, params_);
-
   ResetInlierRatio(data_.inlier_ratio, params_);
+  checkCudaErrors(cudaDeviceSynchronize());
+  checkCudaErrors(cudaGetLastError());
+
+  ComputeNormalMap(data_.depth_data, data_.normal_data, params_);
 
   /// Array used as texture in mapper
   checkCudaErrors(cudaMemcpyToArray(data_.depth_array, 0, 0,
@@ -132,9 +137,13 @@ int Sensor::Process(cv::Mat &depth, cv::Mat &color) {
                                     data_.color_data,
                                     sizeof(float4)*params_.height*params_.width,
                                     cudaMemcpyDeviceToDevice));
+  checkCudaErrors(cudaMemcpyToArray(data_.normal_array, 0, 0,
+                                    data_.normal_data,
+                                    sizeof(float4)*params_.height*params_.width,
+                                    cudaMemcpyDeviceToDevice));
+
+//  SaveNormalImage("/tmp/normals.png", data_, params_);
+
   BindCUDATexture();
   return 0;
 }
-
-
-

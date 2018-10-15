@@ -237,8 +237,8 @@ void LoadTUM(std::string dataset_path,
       color_image_list.push_back(dataset_path + "/"
                                  + depth_color_correspondence[depth_image_name]);
       wTcs.push_back(wTc);
-      LOG(INFO) << depth_image_name << " "
-                << depth_color_correspondence[depth_image_name];
+//      LOG(INFO) << depth_image_name << " "
+//                << depth_color_correspondence[depth_image_name];
     }
   }
 }

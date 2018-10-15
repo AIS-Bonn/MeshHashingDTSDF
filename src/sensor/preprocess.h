@@ -31,6 +31,13 @@ void ConvertColorFormat(
     SensorParams& params
 );
 
+__host__
+void ComputeNormalMap(
+    float* depth_data,
+    float3* normal_data,
+    SensorParams& params
+);
+
 
 
 #endif //MESH_HASHING_PREPROCESS_H
