@@ -1,5 +1,7 @@
 #include "core/block_array.h"
 #include "helper_cuda.h"
+#include "block_array.h"
+
 
 #include <glog/logging.h>
 #include <device_launch_parameters.h>
@@ -32,6 +34,12 @@ VoxelArray &BlockArray::GetVoxelArray(uint block_idx, size_t voxel_array_idx) co
     printf("ERROR: Trying to acces VoxelArray %u of block %u which does not exist.", voxel_array_idx, block_idx);
   }
   return voxel_array_heap_.GetElement(ptr);
+}
+
+bool BlockArray::HasVoxelArray(uint block_idx, size_t voxel_array_idx) const
+{
+  Block &block = blocks_[block_idx];
+  return block.voxel_array_ptrs[voxel_array_idx] != FREE_PTR;
 }
 
 __device__

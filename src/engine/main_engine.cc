@@ -12,6 +12,7 @@
 #include "mapping/update_simple.h"
 #include "mapping/recycle.h"
 #include "meshing/marching_cubes.h"
+#include "meshing/marching_cubes_directional.h"
 #include "visualization/compress_mesh.h"
 #include "visualization/extract_bounding_box.h"
 
@@ -25,12 +26,15 @@
 /// Eigen::Matrix4f -> float4x4
 /// cTw float4x4
 
-float4x4 SolveAndConvertDeltaXi(const mat6x6& A, const mat6x1&b, float lambda) {
+float4x4 SolveAndConvertDeltaXi(const mat6x6 &A, const mat6x1 &b, float lambda)
+{
   Eigen::Matrix<float, 6, 6> eigen_A;
   Eigen::Matrix<float, 6, 1> eigen_b, eigen_dxi;
 
-  for (int i = 0; i < 6; ++i) {
-    for (int j = 0; j < 6; ++j) {
+  for (int i = 0; i < 6; ++i)
+  {
+    for (int j = 0; j < 6; ++j)
+    {
       eigen_A.coeffRef(i, j) = A.entries2D[i][j];
     }
     eigen_b.coeffRef(i) = b.entries[i];
@@ -44,8 +48,10 @@ float4x4 SolveAndConvertDeltaXi(const mat6x6& A, const mat6x1&b, float lambda) {
   //LOG(INFO) << eigen_dxi.transpose();
   Eigen::Matrix4f eigen_dT = Sophus::SE3f::exp(eigen_dxi).matrix();
   float4x4 dT;
-  for (int i = 0; i < 4; ++i) {
-    for (int j = 0; j < 4; ++j) {
+  for (int i = 0; i < 4; ++i)
+  {
+    for (int j = 0; j < 4; ++j)
+    {
       dT.entries2[i][j] = eigen_dT.coeff(i, j);
     }
   }
@@ -53,10 +59,13 @@ float4x4 SolveAndConvertDeltaXi(const mat6x6& A, const mat6x1&b, float lambda) {
   return dT;
 }
 
-Eigen::Matrix<float, 6, 1> SE3Tose3(float4x4 mat) {
+Eigen::Matrix<float, 6, 1> SE3Tose3(float4x4 mat)
+{
   Eigen::Matrix4f eigen_mat;
-  for (int i = 0; i < 4; ++i) {
-    for (int j = 0; j < 4; ++j) {
+  for (int i = 0; i < 4; ++i)
+  {
+    for (int j = 0; j < 4; ++j)
+    {
       eigen_mat(i, j) = mat.entries2[i][j];
     }
   }
@@ -67,8 +76,10 @@ Eigen::Matrix<float, 6, 1> SE3Tose3(float4x4 mat) {
   return SE3.log();
 };
 
-void MainEngine::Localizing(Sensor &sensor, int iters, float4x4& gt) {
-  for (int iter = 0; iter < iters; ++iter) {
+void MainEngine::Localizing(Sensor &sensor, int iters, float4x4 &gt)
+{
+  for (int iter = 0; iter < iters; ++iter)
+  {
 //    Eigen::Matrix<float, 6, 1> pose = SE3Tose3(sensor.wTc());
 //    Eigen::Matrix<float, 6, 1> gt_pose = SE3Tose3(gt);
 //    std::stringstream ss;
@@ -84,7 +95,8 @@ void MainEngine::Localizing(Sensor &sensor, int iters, float4x4& gt) {
     float error = PointToSurface(blocks_, voxel_array_idx, sensor,
                                  hash_table_, geometry_helper_,
                                  A, b, count);
-    if (count == 0) {
+    if (count == 0)
+    {
       LOG(INFO) << "Count equals 0!";
       return;
     };
@@ -98,7 +110,8 @@ void MainEngine::Localizing(Sensor &sensor, int iters, float4x4& gt) {
   }
 }
 
-void MainEngine::Mapping(Sensor &sensor) {
+void MainEngine::Mapping(Sensor &sensor)
+{
   double alloc_time = AllocBlockArray(
       hash_table_,
       sensor,
@@ -116,20 +129,32 @@ void MainEngine::Mapping(Sensor &sensor) {
   size_t voxel_array_idx = 0;
 
   double update_time = 0;
-  if (!map_engine_.enable_bayesian_update()) {
+  if (!map_engine_.enable_bayesian_update())
+  {
     LOG(INFO) << "Simple update";
-    update_time = UpdateBlocksSimple(candidate_entries_,
-                                     blocks_,
-                                     voxel_array_idx,
-                                     sensor,
-                                     hash_table_,
-                                     geometry_helper_);
+    if (runtime_params_.enable_directional_sdf)
+    {
+      update_time = UpdateBlocksSimpleDirectional(candidate_entries_,
+                                                  blocks_,
+                                                  sensor,
+                                                  hash_table_,
+                                                  geometry_helper_);
+    } else
+    {
+      update_time = UpdateBlocksSimple(candidate_entries_,
+                                       blocks_,
+                                       voxel_array_idx,
+                                       sensor,
+                                       hash_table_,
+                                       geometry_helper_);
+    }
     log_engine_.WriteMappingTimeStamp(
         alloc_time,
         collect_time,
         update_time,
         integrated_frame_count_);
-  } else {
+  } else
+  {
     LOG(INFO) << "Bayesian update";
     float predict_seconds = PredictOutlierRatio(
         candidate_entries_,
@@ -157,21 +182,36 @@ void MainEngine::Mapping(Sensor &sensor) {
         integrated_frame_count_);
   }
 
-  integrated_frame_count_ ++;
+  integrated_frame_count_++;
 }
 
-void MainEngine::Meshing() {
-  float time = MarchingCubes(candidate_entries_,
-                             blocks_,
-                             mesh_,
-                             hash_table_,
-                             geometry_helper_,
-                             enable_sdf_gradient_);
+void MainEngine::Meshing()
+{
+  float time;
+  if (runtime_params_.enable_directional_sdf)
+  {
+    time = MarchingCubesDirectional(candidate_entries_,
+                         blocks_,
+                         mesh_,
+                         hash_table_,
+                         geometry_helper_,
+                         enable_sdf_gradient_);
+  }
+  else
+  {
+    time = MarchingCubes(candidate_entries_,
+                         blocks_,
+                         mesh_,
+                         hash_table_,
+                         geometry_helper_,
+                         enable_sdf_gradient_);
+  }
   CollectLowSurfelBlocks(candidate_entries_,
                          blocks_,
                          hash_table_,
                          geometry_helper_);
-  if (integrated_frame_count_ % 10 == 0) {
+  if (integrated_frame_count_ % 10 == 0)
+  {
     RecycleGarbageBlockArray(candidate_entries_,
                              blocks_,
                              mesh_,
@@ -180,16 +220,19 @@ void MainEngine::Meshing() {
   log_engine_.WriteMeshingTimeStamp(time, integrated_frame_count_);
 }
 
-void MainEngine::Recycle() {
+void MainEngine::Recycle()
+{
   // TODO(wei): change it via global parameters
   int kRecycleGap = 15;
   if (!map_engine_.enable_bayesian_update()
-      && integrated_frame_count_ % kRecycleGap == kRecycleGap - 1) {
-    StarveOccupiedBlockArray(candidate_entries_, blocks_);
-
-    CollectGarbageBlockArray(candidate_entries_,
-                             blocks_,
-                             geometry_helper_);
+      && integrated_frame_count_ % kRecycleGap == kRecycleGap - 1)
+  {
+    // FIXME: make directional versions of these
+//    StarveOccupiedBlockArray(candidate_entries_, blocks_);
+//
+//    CollectGarbageBlockArray(candidate_entries_,
+//                             blocks_,
+//                             geometry_helper_);
     hash_table_.ResetMutexes();
     RecycleGarbageBlockArray(candidate_entries_,
                              blocks_,
@@ -199,10 +242,13 @@ void MainEngine::Recycle() {
 }
 
 // view: world -> camera
-int MainEngine::Visualize(float4x4 view, float4x4 view_gt) {
-  if (vis_engine_.enable_interaction()) {
+int MainEngine::Visualize(float4x4 view, float4x4 view_gt)
+{
+  if (vis_engine_.enable_interaction())
+  {
     vis_engine_.update_view_matrix();
-  } else {
+  } else
+  {
     glm::mat4 glm_view;
     for (int i = 0; i < 4; ++i)
       for (int j = 0; j < 4; ++j)
@@ -211,7 +257,8 @@ int MainEngine::Visualize(float4x4 view, float4x4 view_gt) {
     vis_engine_.set_view_matrix(glm_view);
   }
 
-  if (vis_engine_.enable_global_mesh()) {
+  if (vis_engine_.enable_global_mesh())
+  {
     CollectAllBlocks(hash_table_, candidate_entries_);
   } // else CollectBlocksInFrustum
 
@@ -222,20 +269,23 @@ int MainEngine::Visualize(float4x4 view, float4x4 view_gt) {
                vis_engine_.compact_mesh(),
                timing);
 
-  if (vis_engine_.enable_bounding_box()) {
+  if (vis_engine_.enable_bounding_box())
+  {
     vis_engine_.bounding_box().Reset();
 
     ExtractBoundingBox(candidate_entries_,
                        vis_engine_.bounding_box(),
                        geometry_helper_);
   }
-  if (vis_engine_.enable_trajectory()) {
+  if (vis_engine_.enable_trajectory())
+  {
     vis_engine_.trajectory().AddPose(view.getInverse());
     vis_engine_.trajectory().AddPose(view_gt.getInverse());
   }
 
 
-  if (vis_engine_.enable_ray_casting()) {
+  if (vis_engine_.enable_ray_casting())
+  {
     Timer timer;
     timer.Tick();
     vis_engine_.RenderRayCaster(view,
@@ -245,13 +295,16 @@ int MainEngine::Visualize(float4x4 view, float4x4 view_gt) {
     LOG(INFO) << " Raycasting time: " << timer.Tock();
   }
 
-  return  vis_engine_.Render();
+  return vis_engine_.Render();
 }
 
-int MainEngine::Visualize(float4x4 view) {
-  if (vis_engine_.enable_interaction()) {
+int MainEngine::Visualize(float4x4 view)
+{
+  if (vis_engine_.enable_interaction())
+  {
     vis_engine_.update_view_matrix();
-  } else {
+  } else
+  {
     glm::mat4 glm_view;
     for (int i = 0; i < 4; ++i)
       for (int j = 0; j < 4; ++j)
@@ -260,7 +313,8 @@ int MainEngine::Visualize(float4x4 view) {
     vis_engine_.set_view_matrix(glm_view);
   }
 
-  if (vis_engine_.enable_global_mesh()) {
+  if (vis_engine_.enable_global_mesh())
+  {
     CollectAllBlocks(hash_table_, candidate_entries_);
   } // else CollectBlocksInFrustum
 
@@ -271,19 +325,22 @@ int MainEngine::Visualize(float4x4 view) {
                vis_engine_.compact_mesh(),
                timing);
 
-  if (vis_engine_.enable_bounding_box()) {
+  if (vis_engine_.enable_bounding_box())
+  {
     vis_engine_.bounding_box().Reset();
 
     ExtractBoundingBox(candidate_entries_,
                        vis_engine_.bounding_box(),
                        geometry_helper_);
   }
-  if (vis_engine_.enable_trajectory()) {
+  if (vis_engine_.enable_trajectory())
+  {
     vis_engine_.trajectory().AddPose(view.getInverse());
   }
 
 
-  if (vis_engine_.enable_ray_casting()) {
+  if (vis_engine_.enable_ray_casting())
+  {
     Timer timer;
     timer.Tick();
     vis_engine_.RenderRayCaster(view,
@@ -293,17 +350,20 @@ int MainEngine::Visualize(float4x4 view) {
     LOG(INFO) << " Raycasting time: " << timer.Tock();
   }
 
-  return  vis_engine_.Render();
+  return vis_engine_.Render();
 }
 
-void MainEngine::Log() {
-  if (log_engine_.enable_video()) {
+void MainEngine::Log()
+{
+  if (log_engine_.enable_video())
+  {
     cv::Mat capture = vis_engine_.Capture();
     log_engine_.WriteVideo(capture);
   }
 }
 
-void MainEngine::FinalLog() {
+void MainEngine::FinalLog()
+{
   CollectAllBlocks(hash_table_, candidate_entries_);
   Meshing();
   int3 timing;
@@ -311,7 +371,8 @@ void MainEngine::FinalLog() {
                blocks_,
                mesh_,
                vis_engine_.compact_mesh(), timing);
-  if (log_engine_.enable_ply()) {
+  if (log_engine_.enable_ply())
+  {
     log_engine_.WritePly(vis_engine_.compact_mesh());
   }
   log_engine_.WriteMeshStats(vis_engine_.compact_mesh().vertex_count(),
@@ -320,13 +381,16 @@ void MainEngine::FinalLog() {
 
 /// Life cycle
 MainEngine::MainEngine(
-    const HashParams& hash_params,
+    const RuntimeParams &runtime_params,
+    const HashParams &hash_params,
     const VolumeParams &volume_params,
     const MeshParams &mesh_params,
     const SensorParams &sensor_params,
     const RayCasterParams &ray_caster_params
-) {
+)
+{
 
+  runtime_params_ = runtime_params;
   hash_params_ = hash_params;
   volume_params_ = volume_params;
   mesh_params_ = mesh_params;
@@ -342,7 +406,8 @@ MainEngine::MainEngine(
   geometry_helper_.Init(volume_params);
 }
 
-MainEngine::~MainEngine() {
+MainEngine::~MainEngine()
+{
   hash_table_.Free();
   blocks_.Free();
   mesh_.Free();
@@ -351,7 +416,8 @@ MainEngine::~MainEngine() {
 }
 
 /// Reset
-void MainEngine::Reset() {
+void MainEngine::Reset()
+{
   integrated_frame_count_ = 0;
 
   hash_table_.Reset();
@@ -363,7 +429,8 @@ void MainEngine::Reset() {
 
 void MainEngine::ConfigMappingEngine(
     bool enable_bayesian_update
-) {
+)
+{
   map_engine_.Init(sensor_params_.width,
                    sensor_params_.height,
                    enable_bayesian_update);
@@ -378,7 +445,8 @@ void MainEngine::ConfigVisualizingEngine(
     bool enable_polygon_mode,
     bool enable_ray_caster,
     bool enable_color
-) {
+)
+{
   vis_engine_.Init("VisEngine", 640, 480);
   vis_engine_.set_interaction_mode(enable_navigation);
   vis_engine_.set_light(light);
@@ -389,18 +457,22 @@ void MainEngine::ConfigVisualizingEngine(
                               enable_color);
   vis_engine_.compact_mesh().Resize(mesh_params_);
 
-  if (enable_bounding_box || enable_trajectory) {
+  if (enable_bounding_box || enable_trajectory)
+  {
     vis_engine_.BuildHelperProgram();
   }
 
-  if (enable_bounding_box) {
-    vis_engine_.InitBoundingBoxData(hash_params_.max_block_count*24);
+  if (enable_bounding_box)
+  {
+    vis_engine_.InitBoundingBoxData(hash_params_.max_block_count * 24);
   }
-  if (enable_trajectory) {
+  if (enable_trajectory)
+  {
     vis_engine_.InitTrajectoryData(80000);
   }
 
-  if (enable_ray_caster) {
+  if (enable_ray_caster)
+  {
     vis_engine_.BuildRayCaster(ray_caster_params_);
   }
 }
@@ -409,17 +481,21 @@ void MainEngine::ConfigLoggingEngine(
     std::string path,
     bool enable_video,
     bool enable_ply
-) {
+)
+{
   log_engine_.Init(path);
-  if (enable_video) {
+  if (enable_video)
+  {
     log_engine_.ConfigVideoWriter(640, 480);
   }
-  if (enable_ply) {
+  if (enable_ply)
+  {
     log_engine_.ConfigPlyWriter();
   }
 }
 
-void MainEngine::RecordBlocks(std::string prefix) {
+void MainEngine::RecordBlocks(std::string prefix)
+{
   //CollectAllBlocks(hash_table_, candidate_entries_);
   BlockMap block_map = log_engine_.RecordBlockToMemory(
       blocks_.GetGPUPtr(), hash_params_.max_block_count,

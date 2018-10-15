@@ -1,7 +1,10 @@
 #include "matrix.h"
+#include "hash_table.h"
+#include "entry_array.h"
 
-#include "engine/main_engine.h"
+//#include "engine/main_engine.h"
 #include "sensor/rgbd_sensor.h"
+#include <geometry/geometry_helper.h>
 
 #include <helper_cuda.h>
 #include <helper_math.h>

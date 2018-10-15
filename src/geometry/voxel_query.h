@@ -95,6 +95,8 @@ inline bool GetVoxelValue(
     HashEntry entry = hash_table.GetEntry(block_pos);
     if (entry.ptr == FREE_ENTRY) return false;
     uint i = geometry_helper.VectorizeOffset(offset);
+    if (not blocks.HasVoxelArray(entry.ptr, voxel_array_idx))
+      return false;
     *voxel = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[i];
   }
   return true;
@@ -121,6 +123,8 @@ inline bool GetVoxelValue(
     return false;
   } else {
     uint i = geometry_helper.VectorizeOffset(offset);
+    if (not blocks.HasVoxelArray(entry.ptr, voxel_array_idx))
+      return false;
     const Voxel& v = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[i];
     voxel->sdf = v.sdf;
     voxel->inv_sigma2 = v.inv_sigma2;

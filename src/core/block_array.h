@@ -32,6 +32,8 @@ public:
 
   __device__ VoxelArray &GetVoxelArray (uint block_idx, size_t voxel_array_idx) const;
 
+  __device__ bool HasVoxelArray (uint block_idx, size_t voxel_array_idx) const;
+
   __host__ __device__ Block& operator[] (uint i) {
     return blocks_[i];
   }
@@ -55,10 +57,10 @@ public:
   __host__ Block* GetGPUPtr() const{
     return blocks_;
   }
-private:
-  bool is_allocated_on_gpu_ = false;
   // @param array
   Block*  blocks_;
+private:
+  bool is_allocated_on_gpu_ = false;
 
   CudaMemoryHeap<VoxelArray> voxel_array_heap_;
 

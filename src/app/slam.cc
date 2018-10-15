@@ -53,6 +53,7 @@ int main(int argc, char **argv) {
   sensor.set_transform(I);
 
   MainEngine main_engine(
+      args,
       config.hash_params,
       config.sdf_params,
       config.mesh_params,

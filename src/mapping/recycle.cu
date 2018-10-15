@@ -126,7 +126,6 @@ void RecycleGarbageTrianglesKernel(
 
   const HashEntry& entry = candidate_entries[idx];
   const uint local_idx = threadIdx.x;  //inside an SDF block
-  Voxel &voxel = blocks.GetVoxelArray(entry.ptr, 0).voxels[local_idx];
   MeshUnit &mesh_unit = blocks[entry.ptr].mesh_units[local_idx];
 
   for (int i = 0; i < N_TRIANGLE; ++i) {

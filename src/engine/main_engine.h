@@ -22,6 +22,7 @@ class MainEngine {
 public:
   // configure main data
   MainEngine(
+      const RuntimeParams& runtime_params,
       const HashParams& hash_params,
       const VolumeParams& volume_params,
       const MeshParams& mesh_params,
@@ -97,6 +98,7 @@ private:
   MeshParams mesh_params_;
   SensorParams sensor_params_;
   RayCasterParams ray_caster_params_;
+  RuntimeParams runtime_params_;
 };
 
 

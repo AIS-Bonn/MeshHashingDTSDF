@@ -91,6 +91,8 @@ static void SurfelExtractionKernel(
   size_t voxel_array_idx = 0;
 
   MeshUnit &this_mesh_unit = block.mesh_units[threadIdx.x];
+  if (not blocks.HasVoxelArray(entry.ptr, voxel_array_idx))
+    return;
   Voxel& this_voxel = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[threadIdx.x];
   //////////
   /// 1. Read the scalar values, see mc_tables.h
@@ -324,7 +326,7 @@ static void RecycleVerticesKernel(
 ////////////////////
 /// Host code
 ////////////////////
-float MarchingCubes(
+float MarchingCubesDirectional(
     EntryArray &candidate_entries,
     BlockArray &blocks,
     Mesh &mesh,

@@ -52,6 +52,7 @@ int main(int argc, char **argv) {
   Sensor sensor(config.sensor_params);
 
   MainEngine main_engine(
+      args,
       config.hash_params,
       config.sdf_params,
       config.mesh_params,

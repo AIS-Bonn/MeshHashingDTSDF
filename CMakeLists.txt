@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-PROJECT(mesh-hashing)
+PROJECT(mesh-hashing C CXX)
 
 set(CUDA_TOOLKIT_ROOT_DIR "/usr/local/cuda-9.2")
 SET(OpenCV_DIR "/usr/local/share/OpenCV")
@@ -11,6 +11,11 @@ SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -Wall -g -ggdb")
 SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -Wall")
 
 #----------
+# CUDA compilation settings
+set(CUDA_SEPARABLE_COMPILATION ON) # enable splitting code in .h and .cu files (otherwise linking issues)
+LIST(APPEND CUDA_NVCC_FLAGS -gencode=arch=compute_30,code=sm_30)
+
+#----------
 # Project variable configurations
 SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
 SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
@@ -19,12 +24,12 @@ SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 # Find packages
 FIND_PACKAGE(PkgConfig)
 LIST(APPEND
-        CMAKE_MODULE_PATH
-        ${PROJECT_SOURCE_DIR}/cmake_modules)
+  CMAKE_MODULE_PATH
+  ${PROJECT_SOURCE_DIR}/cmake_modules)
 
 # Graphics dependent
-FIND_PACKAGE(GLFW3  REQUIRED)
-FIND_PACKAGE(GLEW   REQUIRED)
+FIND_PACKAGE(GLFW3 REQUIRED)
+FIND_PACKAGE(GLEW REQUIRED)
 FIND_PACKAGE(OpenGL REQUIRED)
 # CV utilities
 FIND_PACKAGE(OpenCV 3 REQUIRED)
@@ -38,44 +43,44 @@ FIND_PACKAGE(Glog REQUIRED)
 #----------
 ## Found Headers
 GET_PROPERTY(included_dirs
-        DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        PROPERTY INCLUDE_DIRECTORIES)
+  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  PROPERTY INCLUDE_DIRECTORIES)
 MESSAGE(STATUS "Found include paths:")
-foreach(included_dir ${included_dirs})
-    MESSAGE(STATUS ${included_dir})
-endforeach()
+foreach (included_dir ${included_dirs})
+  MESSAGE(STATUS ${included_dir})
+endforeach ()
 
 #----------
 ## Found Libs
 SET(OPENGL_DEPENDENCIES "")
 LIST(APPEND
-        OPENGL_DEPENDENCIES
-        ${OPENGL_LIBRARY}
-        ${GLEW_LIBRARY})
+  OPENGL_DEPENDENCIES
+  ${OPENGL_LIBRARY}
+  ${GLEW_LIBRARY})
 if (APPLE)
-    LIST(APPEND OPENGL_DEPENDENCIES
-            ${GLFW3_LIBRARIES})
+  LIST(APPEND OPENGL_DEPENDENCIES
+    ${GLFW3_LIBRARIES})
 else ()
-    LIST(APPEND OPENGL_DEPENDENCIES
-            ${GLFW3_STATIC_LIBRARIES})
-endif()
+  LIST(APPEND OPENGL_DEPENDENCIES
+    ${GLFW3_STATIC_LIBRARIES})
+endif ()
 
 SET(CUDA_DEPENDENCIES "")
 LIST(APPEND
-        CUDA_DEPENDENCIES
-        ${CUDA_CUDART_LIBRARY}
-        ${CUDA_CUDA_LIBRARY})
+  CUDA_DEPENDENCIES
+  ${CUDA_CUDART_LIBRARY}
+  ${CUDA_CUDA_LIBRARY})
 
 MESSAGE(STATUS "Found libraries:")
-foreach(library ${OPENGL_DEPENDENCIES})
-    MESSAGE(STATUS ${library})
-endforeach()
-foreach(library ${CUDA_DEPENDENCIES})
-    MESSAGE(STATUS ${library})
-endforeach()
-foreach(library ${OTHER_DEPENDENCIES})
-    MESSAGE(STATUS ${library})
-endforeach()
+foreach (library ${OPENGL_DEPENDENCIES})
+  MESSAGE(STATUS ${library})
+endforeach ()
+foreach (library ${CUDA_DEPENDENCIES})
+  MESSAGE(STATUS ${library})
+endforeach ()
+foreach (library ${OTHER_DEPENDENCIES})
+  MESSAGE(STATUS ${library})
+endforeach ()
 #---------
 
 #----------
@@ -83,118 +88,119 @@ SET(VH ${PROJECT_SOURCE_DIR}/src)
 SET(GL_WRAPPER ${VH}/extern/opengl-wrapper)
 
 INCLUDE_DIRECTORIES(
-        ${VH}
-        ${VH}/extern/cuda
-        /opt/ros/kinetic/include
-        ${GL_WRAPPER}/include
-        ${EIGEN3_INCLUDE_DIR}
-        ${GLOG_INCLUDE_DIRS}
-        ${CUDA_TOOLKIT_INCLUDE})
+  ${VH}
+  ${VH}/extern/cuda
+  /opt/ros/kinetic/include
+  ${GL_WRAPPER}/include
+  ${EIGEN3_INCLUDE_DIR}
+  ${GLOG_INCLUDE_DIRS}
+  ${CUDA_TOOLKIT_INCLUDE})
 
 #----------
 ## Building Libraries
 ### 1. OpenGL util
 ADD_LIBRARY(gl-util
-        ${GL_WRAPPER}/src/core/args.cc
-        ${GL_WRAPPER}/src/core/program.cc
-        ${GL_WRAPPER}/src/core/window.cc
-        ${GL_WRAPPER}/src/core/uniforms.cc
-        ${GL_WRAPPER}/src/core/camera.cc)
+  ${GL_WRAPPER}/src/core/args.cc
+  ${GL_WRAPPER}/src/core/program.cc
+  ${GL_WRAPPER}/src/core/window.cc
+  ${GL_WRAPPER}/src/core/uniforms.cc
+  ${GL_WRAPPER}/src/core/camera.cc)
 SET_TARGET_PROPERTIES(gl-util
-        PROPERTIES
-        COMPILE_DEFINITIONS USE_CUDA_GL)
+  PROPERTIES
+  COMPILE_DEFINITIONS USE_CUDA_GL)
 TARGET_LINK_LIBRARIES(gl-util
-        ${OPENGL_DEPENDENCIES}
-        ${GLOG_LIBRARIES})
+  ${OPENGL_DEPENDENCIES}
+  ${GLOG_LIBRARIES})
+
 
 ### 2. CUDA
-set(CUDA_SEPARABLE_COMPILATION ON) # enable splitting code in .h and .cu files (otherwise linking issues)
-LIST(APPEND CUDA_NVCC_FLAGS -gencode=arch=compute_30,code=sm_30)
 CUDA_ADD_LIBRARY(mesh-hashing-cuda
-        ${VH}/core/cuda_memory_heap.cu
-        ${VH}/core/hash_table.cu
-        ${VH}/core/entry_array.cu
-        ${VH}/core/block_array.cu
-        ${VH}/core/mesh.cu
-        ${VH}/core/collect_block_array.cu
+  ${CORE_HEADERS}
+  ${VH}/core/cuda_memory_heap.cu
+  ${VH}/core/hash_table.cu
+  ${VH}/core/entry_array.cu
+  ${VH}/core/block_array.cu
+  ${VH}/core/mesh.cu
+  ${VH}/core/collect_block_array.cu
 
-        ${VH}/sensor/rgbd_sensor.cu
-        ${VH}/sensor/preprocess.cu
+  ${VH}/sensor/rgbd_sensor.cu
+  ${VH}/sensor/preprocess.cu
 
-        ${VH}/localizing/point_to_psdf.cu
-        ${VH}/mapping/allocate.cu
-        ${VH}/mapping/update_simple.cu
-        ${VH}/mapping/update_bayesian.cu
-        ${VH}/mapping/recycle.cu
+  ${VH}/localizing/point_to_psdf.cu
+  ${VH}/mapping/allocate.cu
+  ${VH}/mapping/update_simple.cu
+  ${VH}/mapping/update_bayesian.cu
+  ${VH}/mapping/recycle.cu
 
-        ${VH}/optimize/linear_equations.cu
-#        ${VH}/optimize/primal_dual.cu
+  ${VH}/optimize/linear_equations.cu
+  #        ${VH}/optimize/primal_dual.cu
 
-        ${VH}/meshing/marching_cubes.cu
+  ${VH}/meshing/marching_cubes.cu
+  ${VH}/meshing/marching_cubes_directional.cu
 
-        ${VH}/visualization/colorize.cu
-        ${VH}/visualization/compact_mesh.cu
-        ${VH}/visualization/bounding_box.cu
-        ${VH}/visualization/trajectory.cu
-        ${VH}/visualization/compress_mesh.cu
-        ${VH}/visualization/extract_bounding_box.cu
-        ${VH}/visualization/ray_caster.cu
+  ${VH}/visualization/colorize.cu
+  ${VH}/visualization/compact_mesh.cu
+  ${VH}/visualization/bounding_box.cu
+  ${VH}/visualization/trajectory.cu
+  ${VH}/visualization/compress_mesh.cu
+  ${VH}/visualization/extract_bounding_box.cu
+  ${VH}/visualization/ray_caster.cu
   )
 
 TARGET_LINK_LIBRARIES(mesh-hashing-cuda
-        ${CUDA_DEPENDENCIES}
-        ${GLOG_LIBRARIES}
-        ${OpenCV_LIBRARIES})
+  ${CUDA_DEPENDENCIES}
+  ${GLOG_LIBRARIES}
+  ${OpenCV_LIBRARIES})
 
 ### 3. C++
 ADD_LIBRARY(mesh-hashing
-        ${VH}/engine/main_engine.cc
-        ${VH}/engine/mapping_engine.cc
-        ${VH}/engine/logging_engine.cc
-        ${VH}/engine/visualizing_engine.cc
+  ${VH}/engine/main_engine.cc
+  ${VH}/engine/mapping_engine.cc
+  ${VH}/engine/logging_engine.cc
+  ${VH}/engine/visualizing_engine.cc
 
-        ${VH}/io/config_manager.cc
-        ${VH}/io/mesh_writer.cc
+  ${VH}/io/config_manager.cc
+  ${VH}/io/mesh_writer.cc
 
-        ${VH}/sensor/rgbd_data_provider.cc)
-        #${VH}/tool/cpp/debugger.cc)
+  ${VH}/sensor/rgbd_data_provider.cc)
+#${VH}/tool/cpp/debugger.cc)
 SET_TARGET_PROPERTIES(mesh-hashing
-        PROPERTIES
-        COMPILE_DEFINITIONS USE_CUDA_GL)
+  PROPERTIES
+  COMPILE_DEFINITIONS USE_CUDA_GL)
 TARGET_LINK_LIBRARIES(mesh-hashing
-        mesh-hashing-cuda
-        gl-util)
+  mesh-hashing-cuda
+  gl-util)
 
 #----------
 ### Loop over
 MESSAGE(STATUS ${GLOG_LIBRARIES})
 ADD_EXECUTABLE(reconstruction src/app/reconstruction.cc)
 SET_TARGET_PROPERTIES(reconstruction
-        PROPERTIES
-        COMPILE_DEFINITIONS USE_CUDA_GL)
+  PROPERTIES
+  COMPILE_DEFINITIONS USE_CUDA_GL)
 TARGET_LINK_LIBRARIES(reconstruction
-        mesh-hashing
-        ${OpenCV_LIBRARIES}
-        ${GLOG_LIBRARIES})
+  mesh-hashing
+  ${OpenCV_LIBRARIES}
+  ${GLOG_LIBRARIES})
 
 ADD_EXECUTABLE(slam src/app/slam.cc)
 SET_TARGET_PROPERTIES(slam
-        PROPERTIES
-        COMPILE_DEFINITIONS USE_CUDA_GL)
+  PROPERTIES
+  COMPILE_DEFINITIONS USE_CUDA_GL)
 TARGET_LINK_LIBRARIES(slam
-        mesh-hashing
-        ${OpenCV_LIBRARIES}
-        ${GLOG_LIBRARIES})
+  mesh-hashing
+  ${OpenCV_LIBRARIES}
+  ${GLOG_LIBRARIES})
 
 ADD_EXECUTABLE(block_analysis src/app/block_analysis.cc)
 SET_TARGET_PROPERTIES(block_analysis
-        PROPERTIES
-        COMPILE_DEFINITIONS USE_CUDA_GL)
+  PROPERTIES
+  COMPILE_DEFINITIONS USE_CUDA_GL)
 TARGET_LINK_LIBRARIES(block_analysis
-        gl-util
-        mesh-hashing
-        ${OpenCV_LIBRARIES}
-        ${GLOG_LIBRARIES})
+  gl-util
+  mesh-hashing
+  ${OpenCV_LIBRARIES}
+  ${GLOG_LIBRARIES})
 
 ### An ORB app
 #OPTION(WITH_ORBSLAM2 "Build with orb slam" ON)
