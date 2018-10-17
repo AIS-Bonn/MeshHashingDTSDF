@@ -72,7 +72,7 @@ static inline int AllocateVertexWithMutex(
 }
 
 __global__
-static void SurfelExtractionKernel(
+static void VertexExtractionKernel(
     EntryArray candidate_entries,
     BlockArray blocks,
     Mesh mesh,
@@ -344,7 +344,7 @@ float MarchingCubes(
   /// Use divide and conquer to avoid read-write conflict
   Timer timer;
   timer.Tick();
-  SurfelExtractionKernel << < grid_size, block_size >> > (
+  VertexExtractionKernel << < grid_size, block_size >> > (
       candidate_entries,
           blocks,
           mesh,

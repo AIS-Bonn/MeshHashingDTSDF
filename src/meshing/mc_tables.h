@@ -343,19 +343,28 @@ const static int3 kVtxOffset[8] = {
         {0, 0, 0}
 };
 
-/// offset + vertex_index, ({0,1}^3, {0,2})
-// 0 -> 011.x, (0, 1)
-// 1 -> 110.z, (1, 2)
-// 2 -> 010.x, (2, 3)
-// 3 -> 010.z, (3, 0)
-// 4 -> 001.x, (4, 5)
-// 5 -> 100.z, (5, 6)
-// 6 -> 000.x, (6, 7)
-// 7 -> 000.z, (7, 4)
-// 8 -> 001.y, (4, 0)
-// 9 -> 101.y, (5, 1)
-//10 -> 100.y, (6, 2)
-//11 -> 000.y, (7, 3)
+/**
+ * Table to map from each voxel edge to an offset for determining the responsible MeshUnit.
+ *
+ * FORMAT:
+ *      offset + vertex_index, ({0,1}^3, {0,1,2})
+ *
+ * Offset denotes how many steps the MeshUnit is away in (x,y,z) direction.
+ * vertex_index determines which of the 3 vertices inside the MeshUnit correspond to that edge.
+ *
+ *  0 -> 011.x, (0, 1)
+ *  1 -> 110.z, (1, 2)
+ *  2 -> 010.x, (2, 3)
+ *  3 -> 010.z, (3, 0)
+ *  4 -> 001.x, (4, 5)
+ *  5 -> 100.z, (5, 6)
+ *  6 -> 000.x, (6, 7)
+ *  7 -> 000.z, (7, 4)
+ *  8 -> 001.y, (4, 0)
+ *  9 -> 101.y, (5, 1)
+ * 10 -> 100.y, (6, 2)
+ * 11 -> 000.y, (7, 3)
+ */
 __device__
 const static uint4 kEdgeOwnerCubeOffset[12] = {
         {0, 1, 1, 0},
@@ -372,32 +381,36 @@ const static uint4 kEdgeOwnerCubeOffset[12] = {
         {0, 0, 0, 1}
 };
 
+/**
+ * Map from edge index to both endpoint voxel corner indices
+ */
 __device__
 const static int2 kEdgeEndpointVertices[12] = {
+    // (Changed order of vertices, s.t. all edges point from left-to-right, top-to-bottom, front-to-back)
         {0, 1},
-        {1, 2},
-        {2, 3},
+        {2, 1},
+        {3, 2},
         {3, 0},
         {4, 5},
-        {5, 6},
-        {6, 7},
+        {6, 5},
+        {7, 6},
         {7, 4},
         {4, 0},
         {5, 1},
         {6, 2},
         {7, 3}
-};
-
-__device__
-const static short kRegularCubeIndices[6] = {
-    51, 204,
-    153, 102,
-    15, 249
-};
-
-__device__
-const static short kSemiRegularCubeIndices[2] = {
-    3, 48
+//    {0, 1},
+//    {1, 2},
+//    {2, 3},
+//    {3, 0},
+//    {4, 5},
+//    {5, 6},
+//    {6, 7},
+//    {7, 4},
+//    {4, 0},
+//    {5, 1},
+//    {6, 2},
+//    {7, 3}
 };
 
 

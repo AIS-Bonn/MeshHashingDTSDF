@@ -26,16 +26,18 @@ struct __ALIGN__(4) Stat {
 
 struct __ALIGN__(4) MeshUnit {
   // mesh
-  int vertex_ptrs   [N_VERTEX];  // 3
-  int vertex_mutexes[N_VERTEX];  // 3
-  int triangle_ptrs [N_TRIANGLE];//
+  int vertex_ptrs   [N_VERTEX];
+  int vertex_mutexes[N_VERTEX];
+  int triangle_ptrs [N_TRIANGLE];
   short curr_cube_idx, prev_cube_idx;
 
   __host__ __device__
   void ResetMutexes() {
-    vertex_mutexes[0] = FREE_PTR;
-    vertex_mutexes[1] = FREE_PTR;
-    vertex_mutexes[2] = FREE_PTR;
+#pragma unroll
+    for (uint i = 0; i < N_VERTEX; i++)
+    {
+      vertex_mutexes[i] = FREE_PTR;
+    }
   }
 
   __host__ __device__
@@ -45,15 +47,15 @@ struct __ALIGN__(4) MeshUnit {
 
   __host__ __device__
   void Clear() {
-    vertex_ptrs[0] = vertex_mutexes[0] = FREE_PTR;
-    vertex_ptrs[1] = vertex_mutexes[1] = FREE_PTR;
-    vertex_ptrs[2] = vertex_mutexes[2] = FREE_PTR;
+    for (uint i = 0; i < N_VERTEX; i++)
+    {
+      vertex_ptrs[i] = vertex_mutexes[i] = FREE_PTR;
+    }
 
-    triangle_ptrs[0] = FREE_PTR;
-    triangle_ptrs[1] = FREE_PTR;
-    triangle_ptrs[2] = FREE_PTR;
-    triangle_ptrs[3] = FREE_PTR;
-    triangle_ptrs[4] = FREE_PTR;
+    for (uint i = 0; i < N_TRIANGLE; i++)
+    {
+      triangle_ptrs[i] = FREE_PTR;
+    }
 
     curr_cube_idx = prev_cube_idx = 0;
   }

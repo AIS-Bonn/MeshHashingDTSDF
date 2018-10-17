@@ -2,6 +2,7 @@
 #include "meshing/marching_cubes.h"
 #include "geometry/spatial_query.h"
 #include "visualization/color_util.h"
+#include "core/directional_tsdf.h"
 //#define REDUCTION
 
 ////////////////////
@@ -12,14 +13,49 @@
 /// Device code
 ////////////////////
 
-/// Marching Cubes
+/**
+ * Gets computes direction the surface is facing.
+ * @param v1 SDF value of corner 1
+ * @param v2 SDF value of corner 2
+ * @return 1 if surface faces towards v1, -1 if surface towards v2.
+ */
+__device__
+static inline int GetSurfaceDirection(const float &v1, const float &v2)
+{
+  return -1 + 2 * (v1 > v2);
+}
+
+/**
+ * Interpolate the surface offset between two voxel vertices given their SDF values.
+ * @param v1 SDF value of corner 1
+ * @param v2 SDF value of corner 2
+ * @param isolevel Surface iso level
+ * @return Vertex offset between two voxel vertices
+ */
+__device__
+static inline float InterpolateSurfaceOffset(const float &v1, const float &v2,
+                                             const float &isolevel)
+{
+  if (fabs(v1 - isolevel) < 0.008) return 0;
+  if (fabs(v2 - isolevel) < 0.008) return 1;
+  return (isolevel - v1) / (v2 - v1);
+}
+
+/**
+ * Interpolate vertex position on voxel edge for the given SDF values.
+ * @param p1 Voxel corner 1
+ * @param p2 Voxel corner 2
+ * @param v1 SDF value of corner 1
+ * @param v2 SDF value of corner 2
+ * @param isolevel Surface iso level
+ * @return Vertex position on voxel edge
+ */
 __device__
 static float3 VertexIntersection(const float3 &p1, const float3 p2,
-                          const float &v1, const float &v2,
-                          const float &isolevel) {
-  if (fabs(v1 - isolevel) < 0.008) return p1;
-  if (fabs(v2 - isolevel) < 0.008) return p2;
-  float mu = (isolevel - v1) / (v2 - v1);
+                                 const float &v1, const float &v2,
+                                 const float &isolevel)
+{
+  float mu = InterpolateSurfaceOffset(v1, v2, isolevel);
 
   float3 p = make_float3(p1.x + mu * (p2.x - p1.x),
                          p1.y + mu * (p2.y - p1.y),
@@ -30,23 +66,27 @@ static float3 VertexIntersection(const float3 &p1, const float3 p2,
 __device__
 static inline int AllocateVertexWithMutex(
     MeshUnit &mesh_unit,
-    uint  &vertex_idx,
+    uint &vertex_idx,
     const float3 &vertex_pos,
     Mesh &mesh,
     BlockArray &blocks,
     const HashTable &hash_table,
     GeometryHelper &geometry_helper,
     bool enable_sdf_gradient
-) {
+)
+{
   int ptr = mesh_unit.vertex_ptrs[vertex_idx];
-  if (ptr == FREE_PTR) {
+  if (ptr == FREE_PTR)
+  {
     int lock = atomicExch(&mesh_unit.vertex_mutexes[vertex_idx], LOCK_ENTRY);
-    if (lock != LOCK_ENTRY) {
+    if (lock != LOCK_ENTRY)
+    {
       ptr = mesh.AllocVertex();
     } /// Ensure that it is only allocated once
   }
 
-  if (ptr >= 0) {
+  if (ptr >= 0)
+  {
     Voxel voxel_query;
     mesh_unit.vertex_ptrs[vertex_idx] = ptr;
     mesh.vertex(ptr).pos = vertex_pos;
@@ -63,7 +103,7 @@ static inline int AllocateVertexWithMutex(
     float l = length(grad);
     mesh.vertex(ptr).normal = l > 0 && valid ? grad / l : make_float3(0);
 
-    float rho = voxel_query.a/(voxel_query.a + voxel_query.b);
+    float rho = voxel_query.a / (voxel_query.a + voxel_query.b);
     //printf("%f %f\n", voxel_query.a, voxel_query.b);
     mesh.vertex(ptr).color = ValToRGB(rho, 0.4f, 1.0f);
     //mesh.vertex(ptr).color = ValToRGB(voxel_query.inv_sigma2/10000.0f, 0, 1.0f);
@@ -71,37 +111,108 @@ static inline int AllocateVertexWithMutex(
   return ptr;
 }
 
+__device__
+static float GetSDFUnionIntersection(const HashEntry &entry, const int3 voxel_pos, BlockArray &blocks,
+                                     HashTable &hash_table, GeometryHelper &geometry_helper)
+{
+  float sdf_value = MINF;
+  for (int i = 0; i < 6; i++)
+  {
+    if (not blocks.HasVoxelArray(entry.ptr, i))
+      continue;
+
+    Voxel voxel_query;
+    if (GetVoxelValue(entry, voxel_pos,
+                      blocks, i, hash_table,
+                      geometry_helper, &voxel_query))
+    {
+      float value = voxel_query.sdf;
+      for (int j = 0; j < 4; j++)
+      {
+        TSDFDirection neighbor = DirectionalNeighbors[i][j];
+
+        if (not blocks.HasVoxelArray(entry.ptr, static_cast<size_t>(neighbor)))
+          continue;
+
+        Voxel neighbor_query;
+        if (GetVoxelValue(entry, voxel_pos,
+                          blocks, static_cast<size_t>(neighbor), hash_table,
+                          geometry_helper, &neighbor_query))
+        {
+          value = fmaxf(value, neighbor_query.sdf);
+        }
+      }
+      sdf_value = fminf(sdf_value, value);
+    }
+  }
+
+  return sdf_value;
+}
+
+__device__
+static bool GetVoxelSDFValues(const HashEntry &entry, BlockArray &blocks,
+                              HashTable &hash_table, GeometryHelper &geometry_helper,
+                              int3 voxel_pos, TSDFDirection direction,
+                              float *sdf_array, short &cube_index)
+{
+  const float kVoxelSize = geometry_helper.voxel_size;
+  const float kThreshold = 4 * kVoxelSize;
+  const float kIsoLevel = 0;
+
+  cube_index = 0;
+  Voxel voxel_query;
+  for (int i = 0; i < 8; ++i)
+  {
+    if (!GetVoxelValue(entry, voxel_pos + kVtxOffset[i],
+                       blocks, static_cast<size_t>(direction), hash_table,
+                       geometry_helper, &voxel_query))
+    {
+      return false;
+    }
+
+    sdf_array[i] = voxel_query.sdf;
+
+    if (fabs(sdf_array[i]) > kThreshold) return false;
+
+    float rho = voxel_query.a / (voxel_query.a + voxel_query.b);
+    if (rho < 0.1f || voxel_query.inv_sigma2 < squaref(1.0f / kVoxelSize))
+      return false;
+
+    if (sdf_array[i] < kIsoLevel) cube_index |= (1 << i);
+  }
+
+  return true;
+}
+
 __global__
-static void SurfelExtractionKernel(
+static void VertexExtractionKernel(
     EntryArray candidate_entries,
     BlockArray blocks,
     Mesh mesh,
     HashTable hash_table,
     GeometryHelper geometry_helper,
     bool enable_sdf_gradient
-) {
+)
+{
   const HashEntry &entry = candidate_entries[blockIdx.x];
-  Block& block = blocks[entry.ptr];
+  Block &block = blocks[entry.ptr];
 
-  int3   voxel_base_pos = geometry_helper.BlockToVoxel(entry.pos);
-  uint3  offset = geometry_helper.DevectorizeIndex(threadIdx.x);
-  int3   voxel_pos = voxel_base_pos + make_int3(offset);
+  int3 voxel_base_pos = geometry_helper.BlockToVoxel(entry.pos);
+  uint3 offset = geometry_helper.DevectorizeIndex(threadIdx.x);
+  int3 voxel_pos = voxel_base_pos + make_int3(offset);
   float3 world_pos = geometry_helper.VoxelToWorld(voxel_pos);
 
   size_t voxel_array_idx = 0;
 
   MeshUnit &this_mesh_unit = block.mesh_units[threadIdx.x];
-  if (not blocks.HasVoxelArray(entry.ptr, voxel_array_idx))
-    return;
-  Voxel& this_voxel = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[threadIdx.x];
   //////////
   /// 1. Read the scalar values, see mc_tables.h
   const int kVertexCount = 8;
   const float kVoxelSize = geometry_helper.voxel_size;
-  const float kThreshold = 0.40f;  // TODO: constant should depend on voxel size
+  const float kThreshold = 4 * kVoxelSize;
   const float kIsoLevel = 0;
 
-  float  d[kVertexCount];
+  float d[kVertexCount];
   float3 p[kVertexCount];
 
   short cube_index = 0;
@@ -109,57 +220,95 @@ static void SurfelExtractionKernel(
   this_mesh_unit.curr_cube_idx = 0;
 
   // inlier ratio
+//  if (not blocks.HasVoxelArray(entry.ptr, voxel_array_idx))
+//    return;
+//  Voxel &this_voxel = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[threadIdx.x];
 //  if (this_voxel.inv_sigma2 < 5.0f) return;
 //  float rho = this_voxel.a / (this_voxel.a + this_voxel.b);
 //  if (rho < 0.2f || this_voxel.inv_sigma2 < squaref(0.33f / kVoxelSize))
 //    return;
 
-  /// Check 8 corners of a cube: are they valid?
-  Voxel voxel_query;
-  for (int i = 0; i < kVertexCount; ++i) {
-    if (! GetVoxelValue(entry, voxel_pos + kVtxOffset[i],
-                        blocks, voxel_array_idx, hash_table,
-                        geometry_helper, &voxel_query)) {
-      return;
-    }
-
-    d[i] = voxel_query.sdf;
-    if (fabs(d[i]) > kThreshold) return;
-
-    float rho = voxel_query.a / (voxel_query.a + voxel_query.b);
-    if (rho < 0.1f || voxel_query.inv_sigma2 < squaref(1.0f / kVoxelSize))
-      return;
-//    if (voxel_query.inv_sigma2 < 50.0f) return;
-    if (d[i] < kIsoLevel) cube_index |= (1 << i);
+  for (int i = 0; i < 8; ++i)
+  {
     p[i] = world_pos + kVoxelSize * make_float3(kVtxOffset[i]);
   }
 
-  this_mesh_unit.curr_cube_idx = cube_index;
-  if (cube_index == 0 || cube_index == 255) return;
+  // 1) Collect SDF values and MC indices for each direction
+  short mc_indices[6];
+  float sdf_arrays[6][8];
+  bool is_valid[6];
+  for (int direction = 0; direction < 6; direction++)
+  {
+    is_valid[direction] = GetVoxelSDFValues(entry, blocks, hash_table, geometry_helper,
+                                            voxel_pos, TSDFDirection(direction),
+                                            sdf_arrays[direction], mc_indices[direction]);
+  }
 
+#if 1
+  // 2) For every edge: find and intersect (directions) the up to 2 surface offsets (two possible directions)
   const int kEdgeCount = 12;
-#pragma unroll 1
-  for (int i = 0; i < kEdgeCount; ++i) {
-    if (kCubeEdges[cube_index] & (1 << i)) {
-      int2 edge_endpoint_vertices = kEdgeEndpointVertices[i];
-      uint4 edge_cube_owner_offset = kEdgeOwnerCubeOffset[i];
+  for (int i = 0; i < kEdgeCount; ++i)
+  {
+    float2 surface_offsets = make_float2(MINF, MINF);
+    int2 edge_endpoint_vertices = kEdgeEndpointVertices[i];
 
-      // Special noise-bit interpolation here: extrapolation
-      float3 vertex_pos = VertexIntersection(
-          p[edge_endpoint_vertices.x],
-          p[edge_endpoint_vertices.y],
-          d[edge_endpoint_vertices.x],
-          d[edge_endpoint_vertices.y],
-          kIsoLevel);
+    for (int direction = 0; direction < 1; direction++)
+    {
+      short mc_index = mc_indices[direction];
+      float *sdf = sdf_arrays[direction];
 
-      MeshUnit &mesh_unit = GetMeshUnitRef(
-          entry,
-          voxel_pos + make_int3(edge_cube_owner_offset.x,
-                                edge_cube_owner_offset.y,
-                                edge_cube_owner_offset.z),
-          blocks, hash_table,
-          geometry_helper);
+      if (not is_valid[direction])
+        continue;
+      if (not(kCubeEdges[mc_index] & (1 << i)))
+        continue;
 
+      // TODO: combined MC indices??
+      this_mesh_unit.curr_cube_idx = mc_index;
+
+      float surface_offset = InterpolateSurfaceOffset(sdf[edge_endpoint_vertices.x],
+                                                      sdf[edge_endpoint_vertices.y], kIsoLevel);
+      int surface_direction = GetSurfaceDirection(sdf[edge_endpoint_vertices.x],
+                                                  sdf[edge_endpoint_vertices.y]);
+
+      if (surface_direction > 0)
+      { // surface points towards first endpoint
+        surface_offsets.x = fmaxf(surface_offsets.x, surface_offset);
+      } else
+      { // surface points towards second endpoint
+        if (surface_offsets.y == MINF)
+        {
+          surface_offsets.y = surface_offset;
+        }
+        surface_offsets.y = -fmaxf(-surface_offsets.y, -surface_offset);
+      }
+    }
+
+    // If edge is unaffected -> continue
+    if (surface_offsets.x == MINF and surface_offsets.y == MINF)
+      continue;
+
+    // Ensure that inverse surfaces don't cut
+    if (surface_offsets.x > MINF and surface_offsets.y > MINF and surface_offsets.y < surface_offsets.x)
+    {
+      float mean = (surface_offsets.x + surface_offsets.y) * 0.5f;
+      surface_offsets.x = surface_offsets.y = mean;
+    }
+
+    // Determine MeshUnit responsible for edge
+    uint4 edge_cube_owner_offset = kEdgeOwnerCubeOffset[i];
+    MeshUnit &mesh_unit = GetMeshUnitRef(
+        entry,
+        voxel_pos + make_int3(edge_cube_owner_offset.x,
+                              edge_cube_owner_offset.y,
+                              edge_cube_owner_offset.z),
+        blocks, hash_table,
+        geometry_helper);
+
+    if (surface_offsets.x > MINF)
+    { // If surface pointing towards first endpoint exists
+      float3 vertex_pos = p[edge_endpoint_vertices.x]
+                          + surface_offsets.x * (p[edge_endpoint_vertices.y] - p[edge_endpoint_vertices.x]);
+      // Store vertex
       AllocateVertexWithMutex(
           mesh_unit,
           edge_cube_owner_offset.w,
@@ -169,11 +318,82 @@ static void SurfelExtractionKernel(
           hash_table, geometry_helper,
           enable_sdf_gradient);
     }
+    if (surface_offsets.y > MINF)
+    { // If surface pointing towards second endpoint exists
+      float3 vertex_pos = p[edge_endpoint_vertices.x]
+                          + surface_offsets.y * (p[edge_endpoint_vertices.y] - p[edge_endpoint_vertices.x]);
+      // Store vertex
+      AllocateVertexWithMutex(
+          mesh_unit,
+          edge_cube_owner_offset.w,  // surface facing this way, store in latter triplet of vertices
+          vertex_pos,
+          mesh,
+          blocks,
+          hash_table, geometry_helper,
+          enable_sdf_gradient);
+    }
   }
+
+#else
+  /// Check 8 corners of a cube: are they valid?
+  short mc_idx;
+  bool valid = GetVoxelSDFValues(entry, blocks, hash_table, geometry_helper,
+                                 voxel_pos, static_cast<TSDFDirection>(voxel_array_idx),
+                                 d, mc_idx);
+  if (not valid)
+    return;
+  for (int i = 0; i < kVertexCount; ++i)
+  {
+    p[i] = world_pos + kVoxelSize * make_float3(kVtxOffset[i]);
+  }
+  this_mesh_unit.curr_cube_idx = mc_idx;
+
+  if (this_mesh_unit.curr_cube_idx == 0 || this_mesh_unit.curr_cube_idx == 255) return;
+
+  const int kEdgeCount = 12;
+#pragma unroll 1
+  for (int i = 0; i < kEdgeCount; ++i)
+  {
+    if (not(kCubeEdges[this_mesh_unit.curr_cube_idx] & (1 << i)))
+      continue;
+
+    int2 edge_endpoint_vertices = kEdgeEndpointVertices[i];
+    uint4 edge_cube_owner_offset = kEdgeOwnerCubeOffset[i];
+
+    // Find vertex position
+    float3 vertex_pos = VertexIntersection(
+        p[edge_endpoint_vertices.x],
+        p[edge_endpoint_vertices.y],
+        d[edge_endpoint_vertices.x],
+        d[edge_endpoint_vertices.y],
+        kIsoLevel);
+
+
+    // Determine responsible MeshUnit
+    MeshUnit &mesh_unit = GetMeshUnitRef(
+        entry,
+        voxel_pos + make_int3(edge_cube_owner_offset.x,
+                              edge_cube_owner_offset.y,
+                              edge_cube_owner_offset.z),
+        blocks, hash_table,
+        geometry_helper);
+
+    // Store vertex
+    AllocateVertexWithMutex(
+        mesh_unit,
+        edge_cube_owner_offset.w,
+        vertex_pos,
+        mesh,
+        blocks,
+        hash_table, geometry_helper,
+        enable_sdf_gradient);
+  }
+#endif
 }
 
 __device__
-static inline bool IsInner(uint3 offset) {
+static inline bool IsInner(uint3 offset)
+{
   return (offset.x >= 1 && offset.y >= 1 && offset.z >= 1
           && offset.x < BLOCK_SIDE_LENGTH - 1
           && offset.y < BLOCK_SIDE_LENGTH - 1
@@ -188,27 +408,33 @@ static void TriangleExtractionKernel(
     HashTable hash_table,
     GeometryHelper geometry_helper,
     bool enable_sdf_gradient
-) {
+)
+{
   const HashEntry &entry = candidate_entries[blockIdx.x];
-  Block& block = blocks[entry.ptr];
-  if (threadIdx.x == 0) {
+  Block &block = blocks[entry.ptr];
+  if (threadIdx.x == 0)
+  {
     block.boundary_surfel_count = 0;
     block.inner_surfel_count = 0;
   }
   __syncthreads();
 
-  int3   voxel_base_pos = geometry_helper.BlockToVoxel(entry.pos);
-  uint3  offset = geometry_helper.DevectorizeIndex(threadIdx.x);
-  int3   voxel_pos = voxel_base_pos + make_int3(offset);
+  int3 voxel_base_pos = geometry_helper.BlockToVoxel(entry.pos);
+  uint3 offset = geometry_helper.DevectorizeIndex(threadIdx.x);
+  int3 voxel_pos = voxel_base_pos + make_int3(offset);
   float3 world_pos = geometry_helper.VoxelToWorld(voxel_pos);
 
   MeshUnit &this_mesh_unit = block.mesh_units[threadIdx.x];
   bool is_inner = IsInner(offset);
-  for (int i = 0; i < 3; ++i) {
-    if (this_mesh_unit.vertex_ptrs[i] >= 0) {
-      if (is_inner) {
+  for (int i = 0; i < 3; ++i)
+  {
+    if (this_mesh_unit.vertex_ptrs[i] >= 0)
+    {
+      if (is_inner)
+      {
         atomicAdd(&block.inner_surfel_count, 1);
-      } else {
+      } else
+      {
         atomicAdd(&block.boundary_surfel_count, 1);
       }
     }
@@ -221,7 +447,8 @@ static void TriangleExtractionKernel(
 //  blocks[entry.ptr].voxels[local_idx].stats.duration = 0;
 
   if (this_mesh_unit.curr_cube_idx == 0
-      || this_mesh_unit.curr_cube_idx == 255) {
+      || this_mesh_unit.curr_cube_idx == 255)
+  {
     return;
   }
 
@@ -234,11 +461,13 @@ static void TriangleExtractionKernel(
   int vertex_ptrs[kEdgeCount];
 
 #pragma unroll 1
-  for (int i = 0; i < kEdgeCount; ++i) {
-    if (kCubeEdges[this_mesh_unit.curr_cube_idx] & (1 << i)) {
+  for (int i = 0; i < kEdgeCount; ++i)
+  {
+    if (kCubeEdges[this_mesh_unit.curr_cube_idx] & (1 << i))
+    {
       uint4 edge_owner_cube_offset = kEdgeOwnerCubeOffset[i];
 
-      MeshUnit &mesh_unit  = GetMeshUnitRef(
+      MeshUnit &mesh_unit = GetMeshUnitRef(
           entry,
           voxel_pos + make_int3(edge_owner_cube_offset.x,
                                 edge_owner_cube_offset.y,
@@ -257,11 +486,14 @@ static void TriangleExtractionKernel(
   int i = 0;
   for (int t = 0;
        kTriangleVertexEdge[this_mesh_unit.curr_cube_idx][t] != -1;
-       t += 3, ++i) {
+       t += 3, ++i)
+  {
     int triangle_ptr = this_mesh_unit.triangle_ptrs[i];
-    if (triangle_ptr == FREE_PTR) {
+    if (triangle_ptr == FREE_PTR)
+    {
       triangle_ptr = mesh.AllocTriangle();
-    } else {
+    } else
+    {
       mesh.ReleaseTriangle(mesh.triangle(triangle_ptr));
     }
     this_mesh_unit.triangle_ptrs[i] = triangle_ptr;
@@ -271,7 +503,8 @@ static void TriangleExtractionKernel(
         make_int3(vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.curr_cube_idx][t + 0]],
                   vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.curr_cube_idx][t + 1]],
                   vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.curr_cube_idx][t + 2]]));
-    if (!enable_sdf_gradient) {
+    if (!enable_sdf_gradient)
+    {
       mesh.ComputeTriangleNormal(mesh.triangle(triangle_ptr));
     }
   }
@@ -282,7 +515,8 @@ __global__
 static void RecycleTrianglesKernel(
     EntryArray candidate_entries,
     BlockArray blocks,
-    Mesh mesh) {
+    Mesh mesh)
+{
   const HashEntry &entry = candidate_entries[blockIdx.x];
   MeshUnit &mesh_unit = blocks[entry.ptr].mesh_units[threadIdx.x];
 
@@ -291,7 +525,8 @@ static void RecycleTrianglesKernel(
        kTriangleVertexEdge[mesh_unit.curr_cube_idx][t] != -1;
        t += 3, ++i);
 
-  for (; i < N_TRIANGLE; ++i) {
+  for (; i < N_TRIANGLE; ++i)
+  {
     int triangle_ptr = mesh_unit.triangle_ptrs[i];
     if (triangle_ptr == FREE_PTR) continue;
 
@@ -308,14 +543,17 @@ static void RecycleVerticesKernel(
     EntryArray candidate_entries,
     BlockArray blocks,
     Mesh mesh
-) {
+)
+{
   const HashEntry &entry = candidate_entries[blockIdx.x];
   MeshUnit &mesh_unit = blocks[entry.ptr].mesh_units[threadIdx.x];
 
 #pragma unroll 1
-  for (int i = 0; i < 3; ++i) {
+  for (int i = 0; i < 3; ++i)
+  {
     if (mesh_unit.vertex_ptrs[i] != FREE_PTR &&
-        mesh.vertex(mesh_unit.vertex_ptrs[i]).ref_count == 0) {
+        mesh.vertex(mesh_unit.vertex_ptrs[i]).ref_count == 0)
+    {
       mesh.vertex(mesh_unit.vertex_ptrs[i]).Clear();
       mesh.FreeVertex(mesh_unit.vertex_ptrs[i]);
       mesh_unit.vertex_ptrs[i] = FREE_PTR;
@@ -333,7 +571,8 @@ float MarchingCubesDirectional(
     HashTable &hash_table,
     GeometryHelper &geometry_helper,
     bool enable_sdf_gradient
-) {
+)
+{
   uint occupied_block_count = candidate_entries.count();
   LOG(INFO) << "Marching cubes block count: " << occupied_block_count;
   if (occupied_block_count == 0)
@@ -346,7 +585,7 @@ float MarchingCubesDirectional(
   /// Use divide and conquer to avoid read-write conflict
   Timer timer;
   timer.Tick();
-  SurfelExtractionKernel << < grid_size, block_size >> > (
+  VertexExtractionKernel << < grid_size, block_size >> > (
       candidate_entries,
           blocks,
           mesh,
@@ -381,5 +620,5 @@ float MarchingCubesDirectional(
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());
 
-  return (float)(pass1_seconds + pass2_seconds);
+  return (float) (pass1_seconds + pass2_seconds);
 }

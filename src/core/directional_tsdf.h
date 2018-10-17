@@ -16,8 +16,18 @@ enum class TSDFDirection : std::uint8_t
 };
 
 
+__constant__ static TSDFDirection DirectionalNeighbors[6][4] = {
+    {TSDFDirection::LEFT, TSDFDirection::RIGHT, TSDFDirection::FORWARD, TSDFDirection::BACKWARD},
+    {TSDFDirection::LEFT, TSDFDirection::RIGHT, TSDFDirection::FORWARD, TSDFDirection::BACKWARD},
+    {TSDFDirection::UP, TSDFDirection::DOWN, TSDFDirection::FORWARD, TSDFDirection::BACKWARD},
+    {TSDFDirection::UP, TSDFDirection::DOWN, TSDFDirection::FORWARD, TSDFDirection::BACKWARD},
+    {TSDFDirection::UP, TSDFDirection::DOWN, TSDFDirection::LEFT, TSDFDirection::RIGHT},
+    {TSDFDirection::UP, TSDFDirection::DOWN, TSDFDirection::LEFT, TSDFDirection::RIGHT},
+};
+
+
 __host__ __device__
-const char *TSDFDirectionToString(TSDFDirection direction)
+inline const char *TSDFDirectionToString(TSDFDirection direction)
 {
   switch (direction)
   {
@@ -37,7 +47,7 @@ const char *TSDFDirectionToString(TSDFDirection direction)
 }
 
 __host__ __device__
-TSDFDirection VectorToTSDFDirection(const float4 &vector)
+inline TSDFDirection VectorToTSDFDirection(const float4 &vector)
 {
   // Tait-Bryan angles
   float heading = std::atan2(vector.x, vector.z);

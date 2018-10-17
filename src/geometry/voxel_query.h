@@ -48,6 +48,15 @@ inline Voxel &GetVoxelRef(
   }
 }
 
+/**
+ * Returns a reference to the MeshUnit corrsponding to the given voxel position.
+ * @param curr_entry Hash entry
+ * @param voxel_pos Voxel position to find MeshUnit for
+ * @param blocks Block array
+ * @param hash_table Hash table
+ * @param geometry_helper Geometry helper
+ * @return
+ */
 __device__
 inline MeshUnit &GetMeshUnitRef(
     const HashEntry &curr_entry,
@@ -56,7 +65,7 @@ inline MeshUnit &GetMeshUnitRef(
     const HashTable &hash_table,
     GeometryHelper &geometry_helper
 ) {
-  int3 block_pos = geometry_helper.VoxelToBlock(voxel_pos);
+int3 block_pos = geometry_helper.VoxelToBlock(voxel_pos);
   uint3 offset = geometry_helper.VoxelToOffset(block_pos, voxel_pos);
 
   if (curr_entry.pos == block_pos) {
@@ -90,6 +99,8 @@ inline bool GetVoxelValue(
 
   if (curr_entry.pos == block_pos) {
     uint i = geometry_helper.VectorizeOffset(offset);
+    if (not blocks.HasVoxelArray(curr_entry.ptr, voxel_array_idx))
+      return false;
     *voxel = blocks.GetVoxelArray(curr_entry.ptr, voxel_array_idx).voxels[i];
   } else {
     HashEntry entry = hash_table.GetEntry(block_pos);
