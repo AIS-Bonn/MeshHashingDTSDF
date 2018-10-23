@@ -80,28 +80,39 @@ void ComputeNormalMapKernel(float3 *normal, float *depth,
 
   const size_t idx = GetArrayIndex(ux, uy, width);
 
-  float3 points[5];
-  static const int coords[2][5] = {{0, -1, 0,  1, 0},
-                                 {0, 0,  -1, 0, +1}};
-#pragma unroll 5
-  for (int i = 0; i < 5; i++)
+  normal[idx] = make_float3(0, 0, 0);
+  float3 center = GeometryHelper::ImageReprojectToCamera(ux, uy, depth[idx], fx, fy, cx, cy);
+  float3 neighbors[8];
+  size_t count = 0;
+  static const int2 coords[8] = {{-1, -1},
+                                 {0,  -1},
+                                 {1,  -1},
+                                 {1,  0},
+                                 {1,  1},
+                                 {0,  1},
+                                 {-1, 1},
+                                 {-1, 0}};
+  for (int i = 0; i < 8; i++)
   {
-    int u = ux + coords[0][i];
-    int v = uy + coords[1][i];
+    int u = ux + coords[i].x;
+    int v = uy + coords[i].y;
     float depth_value = depth[GetArrayIndex(u, v, width)];
     if (depth_value == 0.0f or depth_value == MINF)
     {
       normal[idx] = make_float3(0);
       return;
     }
-    points[i] = GeometryHelper::ImageReprojectToCamera(u, v, depth_value, fx, fy, cx, cy);
+    neighbors[count] = GeometryHelper::ImageReprojectToCamera(u, v, depth_value, fx, fy, cx, cy);
+    count++;
   }
 
-#pragma unroll 4
-  for (int i = 0; i < 4; i++)
+  for (int i = 0; i < count; i++)
   {
-    normal[idx] += normalize(cross(points[i + 1] - points[0],
-                                 points[((i + 1) % 4) + 1] - points[0]));
+    float3 n = normalize(cross(neighbors[i] - center, neighbors[(i + 1) % 4] - center));
+    if (n.z > 0)
+      continue;
+
+    normal[idx] += n;
   }
 
   normal[idx] = normalize(normal[idx]);
