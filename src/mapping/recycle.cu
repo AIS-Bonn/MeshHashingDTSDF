@@ -158,12 +158,13 @@ void RecycleGarbageVerticesKernel(
   __syncthreads();
 
 #pragma unroll 1
-  for (int i = 0; i < 3; ++i) {
+  for (int i = 0; i < N_VERTEX; ++i) {
     if (cube.vertex_ptrs[i] != FREE_PTR) {
       if (mesh.vertex(cube.vertex_ptrs[i]).ref_count <= 0) {
         mesh.vertex(cube.vertex_ptrs[i]).Clear();
         mesh.FreeVertex(cube.vertex_ptrs[i]);
         cube.vertex_ptrs[i] = FREE_PTR;
+        cube.vertex_mutexes[i] = FREE_ENTRY;
       }
       else {
         atomicAdd(&valid_vertex_count, 1);

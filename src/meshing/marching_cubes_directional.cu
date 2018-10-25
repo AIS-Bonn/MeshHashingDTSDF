@@ -14,18 +14,6 @@
 ////////////////////
 
 /**
- * Gets computes direction the surface is facing.
- * @param v1 SDF value of corner 1
- * @param v2 SDF value of corner 2
- * @return 1 if surface faces towards v1, -1 if surface towards v2.
- */
-__device__
-static inline int GetSurfaceDirection(const float &v1, const float &v2)
-{
-  return -1 + 2 * (v1 > v2);
-}
-
-/**
  * Interpolate the surface offset between two voxel vertices given their SDF values.
  * @param v1 SDF value of corner 1
  * @param v2 SDF value of corner 2
@@ -66,7 +54,7 @@ static float3 VertexIntersection(const float3 &p1, const float3 p2,
 __device__
 static inline int AllocateVertexWithMutex(
     MeshUnit &mesh_unit,
-    uint &vertex_idx,
+    uint vertex_idx,
     const float3 &vertex_pos,
     Mesh &mesh,
     BlockArray &blocks,
@@ -94,59 +82,119 @@ static inline int AllocateVertexWithMutex(
 
     size_t voxel_array_idx = 0; // FIXME: move/remove/change
     float3 grad;
-    bool valid = GetSpatialSDFGradient(
-        vertex_pos,
-        blocks, voxel_array_idx, hash_table,
-        geometry_helper,
-        &grad
-    );
-    float l = length(grad);
-    mesh.vertex(ptr).normal = l > 0 && valid ? grad / l : make_float3(0);
+    if (enable_sdf_gradient)
+    {
+      bool valid = false;
+      float l = 0;
+      while (voxel_array_idx < 6 and not valid and not l > 0)
+      {
+        valid = GetSpatialSDFGradient(
+            vertex_pos,
+            blocks, voxel_array_idx, hash_table,
+            geometry_helper,
+            &grad);
+        l = length(grad);
+        voxel_array_idx++;
+      }
+      mesh.vertex(ptr).normal = l > 0 && valid ? grad / l : make_float3(0);
+    }
 
-    float rho = voxel_query.a / (voxel_query.a + voxel_query.b);
-    //printf("%f %f\n", voxel_query.a, voxel_query.b);
-    mesh.vertex(ptr).color = ValToRGB(rho, 0.4f, 1.0f);
-    //mesh.vertex(ptr).color = ValToRGB(voxel_query.inv_sigma2/10000.0f, 0, 1.0f);
+//    float rho = voxel_query.a / (voxel_query.a + voxel_query.b);
+//    mesh.vertex(ptr).color = ValToRGB(rho, 0.4f, 1.0f);
+    mesh.vertex(ptr).color = ValToRGB(voxel_query.inv_sigma2 / 10000.0f, 0, 1.0f);
   }
   return ptr;
 }
 
 __device__
-static float GetSDFUnionIntersection(const HashEntry &entry, const int3 voxel_pos, BlockArray &blocks,
-                                     HashTable &hash_table, GeometryHelper &geometry_helper)
+static short FilterMCIndexDirection(const short mc_index, const TSDFDirection direction)
 {
-  float sdf_value = MINF;
-  for (int i = 0; i < 6; i++)
+  short new_index = 0;
+  for (int component = 0; component < 4 and kIndexDecomposition[mc_index][component] != -1; component++)
   {
-    if (not blocks.HasVoxelArray(entry.ptr, i))
+    const short part_idx = kIndexDecomposition[mc_index][component];
+    if (not kIndexDirectionCompatibility[part_idx][static_cast<size_t>(direction)])
+      continue;
+    new_index |= part_idx;
+  }
+
+  return new_index;
+}
+
+/** Checks if the specified edge of two marching cubes indices is compatible
+ * (if zero-crossing -> same direction?)
+ *
+ * @param edge
+ * @return
+ */
+__device__
+inline bool MCEdgeCompatible(short mc_index1, short mc_index2, int2 edge)
+{
+  int a = (((mc_index1 & (1 << edge.x)) > 0) << 1) + ((mc_index1 & (1 << edge.y)) > 0);
+  int b = (((mc_index2 & (1 << edge.x)) > 0) << 1) + ((mc_index2 & (1 << edge.y)) > 0);
+
+  return (a xor b) < 3;
+}
+
+__device__
+static short2 ComputeCombinedMCIndices(const short mc_indices[6])
+{
+  short combined[2] = {0, 0};
+  for (size_t i = 0; i < 6; i++)
+  {
+    short mc_index = mc_indices[i];
+    if (mc_index <= 0 or mc_index == 255)
       continue;
 
-    Voxel voxel_query;
-    if (GetVoxelValue(entry, voxel_pos,
-                      blocks, i, hash_table,
-                      geometry_helper, &voxel_query))
+    for (int component = 0; component < 4 and kIndexDecomposition[mc_index][component] != -1; component++)
     {
-      float value = voxel_query.sdf;
-      for (int j = 0; j < 4; j++)
+      if (combined[0] == 0)
       {
-        TSDFDirection neighbor = DirectionalNeighbors[i][j];
+        combined[0] = kIndexDecomposition[mc_index][component];
+        continue;
+      } else if (combined[1] == 0)
+      {
+        combined[1] = kIndexDecomposition[mc_index][component];
+        continue;
+      }
 
-        if (not blocks.HasVoxelArray(entry.ptr, static_cast<size_t>(neighbor)))
-          continue;
+      for (int j = 0; j < 2; j++)
+      {
+        bool compatible = false;
 
-        Voxel neighbor_query;
-        if (GetVoxelValue(entry, voxel_pos,
-                          blocks, static_cast<size_t>(neighbor), hash_table,
-                          geometry_helper, &neighbor_query))
+        if (mc_index & combined[j])
+        { // If indices overlap at least in 1 point, check if at least one edge adjacent to any overlap is compatible
+          short intersection = mc_index & combined[j];
+          for (int edge_idx = 0; edge_idx < 12; edge_idx++)
+          {
+            int2 edge = kEdgeEndpointVertices[edge_idx];
+            if ((intersection & (1 << edge.x)) or (intersection & (1 << edge.y)))
+            {
+              if (MCEdgeCompatible(combined[j], mc_index, edge))
+              {
+                compatible = true;
+              }
+            }
+          }
+        } else
+        { // Indices don't overlap -> all 0-1 transition edges must be compatible !
+          compatible = true;
+          for (int edge_idx = 0; edge_idx < 12; edge_idx++)
+          {
+            compatible &= MCEdgeCompatible(combined[j], mc_index, kEdgeEndpointVertices[edge_idx]);
+          }
+        }
+
+        if (compatible)
         {
-          value = fmaxf(value, neighbor_query.sdf);
+          combined[j] |= mc_index;
         }
       }
-      sdf_value = fminf(sdf_value, value);
     }
   }
 
-  return sdf_value;
+  short2 result = {combined[0], combined[1]};
+  return result;
 }
 
 __device__
@@ -242,6 +290,9 @@ static void VertexExtractionKernel(
     is_valid[direction] = GetVoxelSDFValues(entry, blocks, hash_table, geometry_helper,
                                             voxel_pos, TSDFDirection(direction),
                                             sdf_arrays[direction], mc_indices[direction]);
+    mc_indices[direction] = FilterMCIndexDirection(mc_indices[direction], static_cast<TSDFDirection>(direction));
+    if (not is_valid[direction])
+      mc_indices[direction] = 0;
   }
 
 #if 1
@@ -252,25 +303,22 @@ static void VertexExtractionKernel(
     float2 surface_offsets = make_float2(MINF, MINF);
     int2 edge_endpoint_vertices = kEdgeEndpointVertices[i];
 
-    for (int direction = 0; direction < 1; direction++)
+    int start = static_cast<int>(TSDFDirection::FORWARD);
+    for (int direction = start; direction < start + 1; direction++)
+//    for (int direction = 0; direction < 6; direction++)
     {
       short mc_index = mc_indices[direction];
       float *sdf = sdf_arrays[direction];
 
-      if (not is_valid[direction])
-        continue;
       if (not(kCubeEdges[mc_index] & (1 << i)))
         continue;
 
-      // TODO: combined MC indices??
       this_mesh_unit.curr_cube_idx = mc_index;
 
       float surface_offset = InterpolateSurfaceOffset(sdf[edge_endpoint_vertices.x],
                                                       sdf[edge_endpoint_vertices.y], kIsoLevel);
-      int surface_direction = GetSurfaceDirection(sdf[edge_endpoint_vertices.x],
-                                                  sdf[edge_endpoint_vertices.y]);
 
-      if (surface_direction > 0)
+      if (mc_index & (1 << edge_endpoint_vertices.x))
       { // surface points towards first endpoint
         surface_offsets.x = fmaxf(surface_offsets.x, surface_offset);
       } else
@@ -325,7 +373,8 @@ static void VertexExtractionKernel(
       // Store vertex
       AllocateVertexWithMutex(
           mesh_unit,
-          edge_cube_owner_offset.w,  // surface facing this way, store in latter triplet of vertices
+          edge_cube_owner_offset.w +
+          3,  // surface facing towards second endpoint, store in latter triplet of vertex pointers
           vertex_pos,
           mesh,
           blocks,
@@ -333,6 +382,14 @@ static void VertexExtractionKernel(
           enable_sdf_gradient);
     }
   }
+
+  short2 combined_mc_indices = ComputeCombinedMCIndices(mc_indices);
+//  if (mc_indices[0] != 0 or mc_indices[1] != 0 or mc_indices[2] != 0 or mc_indices[3] != 0 or mc_indices[4] != 0 or mc_indices[5] != 0)
+//  {
+//    printf("(%x, %x, %x, %x, %x, %x) -> (%x, %x)\n", mc_indices[0], mc_indices[1], mc_indices[2], mc_indices[3],
+//           mc_indices[4], mc_indices[5], combined_mc_indices.x, combined_mc_indices.y);
+//  }
+//  this_mesh_unit.curr_cube_idx = combined_mc_indices.x;
 
 #else
   /// Check 8 corners of a cube: are they valid?
@@ -426,7 +483,7 @@ static void TriangleExtractionKernel(
 
   MeshUnit &this_mesh_unit = block.mesh_units[threadIdx.x];
   bool is_inner = IsInner(offset);
-  for (int i = 0; i < 3; ++i)
+  for (int i = 0; i < N_VERTEX; ++i)
   {
     if (this_mesh_unit.vertex_ptrs[i] >= 0)
     {
@@ -465,8 +522,18 @@ static void TriangleExtractionKernel(
   {
     if (kCubeEdges[this_mesh_unit.curr_cube_idx] & (1 << i))
     {
-      uint4 edge_owner_cube_offset = kEdgeOwnerCubeOffset[i];
+      // Compute for which surface direction the vertex is stored on
+      // (compare which endpoint lies in front/behind surface)
+      int ptr_offset;
+      if (this_mesh_unit.curr_cube_idx & (1 << kEdgeEndpointVertices[i].x))
+      {
+        ptr_offset = 0;
+      } else
+      {
+        ptr_offset = 3;
+      }
 
+      uint4 edge_owner_cube_offset = kEdgeOwnerCubeOffset[i];
       MeshUnit &mesh_unit = GetMeshUnitRef(
           entry,
           voxel_pos + make_int3(edge_owner_cube_offset.x,
@@ -476,7 +543,13 @@ static void TriangleExtractionKernel(
           hash_table,
           geometry_helper);
 
-      vertex_ptrs[i] = mesh_unit.GetVertex(edge_owner_cube_offset.w);
+      vertex_ptrs[i] = mesh_unit.GetVertex(edge_owner_cube_offset.w + ptr_offset);
+      if (vertex_ptrs[i] < 0)
+      {
+        printf("Missing vertex MC: %x, (%i,%i, %i, %i, %i, %i) \n", this_mesh_unit.curr_cube_idx,
+               mesh_unit.GetVertex(0), mesh_unit.GetVertex(1), mesh_unit.GetVertex(2), mesh_unit.GetVertex(3),
+               mesh_unit.GetVertex(4), mesh_unit.GetVertex(5));
+      }
       mesh_unit.ResetMutexes();
     }
   }
@@ -557,6 +630,7 @@ static void RecycleVerticesKernel(
       mesh.vertex(mesh_unit.vertex_ptrs[i]).Clear();
       mesh.FreeVertex(mesh_unit.vertex_ptrs[i]);
       mesh_unit.vertex_ptrs[i] = FREE_PTR;
+      mesh_unit.vertex_mutexes[i] = FREE_ENTRY;
     }
   }
 }

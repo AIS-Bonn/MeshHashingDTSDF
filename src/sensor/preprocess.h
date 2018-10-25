@@ -34,7 +34,7 @@ void ConvertColorFormat(
 __host__
 void ComputeNormalMap(
     float* depth_data,
-    float3* normal_data,
+    float4* normal_data,
     SensorParams& params
 );
 

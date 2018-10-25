@@ -20,10 +20,10 @@ struct SensorData {
 
   /// Reformatted data
   float*	depth_data;
-  float*    filtered_depth_data;
-  float*    inlier_ratio;
+  float*  filtered_depth_data;
+  float*  inlier_ratio;
   float4*	color_data;
-  float3*   normal_data;
+  float4* normal_data;  // 4-vector because normal texture must contain 4-vectors as well (no smart copy in cuda)
 
   /// Texture-binded data
   cudaArray*	depth_array;

@@ -56,8 +56,8 @@ typedef signed char schar;
 
 #define FREE_PTR   -2
 
-#define N_VERTEX    3
-#define N_TRIANGLE  5
+#define N_VERTEX    6
+#define N_TRIANGLE  10
 
 #define EPSILON    1e-6
 

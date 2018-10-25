@@ -27,7 +27,7 @@ __constant__ static TSDFDirection DirectionalNeighbors[6][4] = {
 
 
 __host__ __device__
-inline const char *TSDFDirectionToString(TSDFDirection direction)
+inline const char *TSDFDirectionToString(const TSDFDirection direction)
 {
   switch (direction)
   {
@@ -50,26 +50,28 @@ __host__ __device__
 inline TSDFDirection VectorToTSDFDirection(const float4 &vector)
 {
   // Tait-Bryan angles
-  float heading = std::atan2(vector.x, vector.z);
+  float heading = std::atan2(vector.z, vector.x);
   float elevation = std::sin(vector.y);
-  if (elevation > M_PI_4)
-  {
-    return TSDFDirection::UP;
-  } else if (elevation < -M_PI_4)
+  if (heading < 0)
+    heading += 2 * M_PI;
+  if (elevation < - M_PI_4)
   {
     return TSDFDirection::DOWN;
+  } else if (elevation > M_PI_4)
+  {
+    return TSDFDirection::UP;
   } else if ((heading >= 0 and heading < M_PI_4) or (heading >= 7 * M_PI_4 and heading <= 2 * M_PI))
   {
-    return TSDFDirection::RIGHT;
+    return TSDFDirection::LEFT;
   } else if (heading >= M_PI_4 and heading < 3 * M_PI_4)
   {
-    return TSDFDirection::FORWARD;
+    return TSDFDirection::BACKWARD;
   } else if (heading >= 3 * M_PI_4 and heading < 5 * M_PI_4)
   {
-    return TSDFDirection::LEFT;
+    return TSDFDirection::RIGHT;
   } else if (heading >= 5 * M_PI_4 and heading < 7 * M_PI_4)
   {
-    return TSDFDirection::BACKWARD;
+    return TSDFDirection::FORWARD;
   }
 
 }

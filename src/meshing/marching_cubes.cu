@@ -311,12 +311,13 @@ static void RecycleVerticesKernel(
   MeshUnit &mesh_unit = blocks[entry.ptr].mesh_units[threadIdx.x];
 
 #pragma unroll 1
-  for (int i = 0; i < 3; ++i) {
+  for (int i = 0; i < N_VERTEX; ++i) {
     if (mesh_unit.vertex_ptrs[i] != FREE_PTR &&
         mesh.vertex(mesh_unit.vertex_ptrs[i]).ref_count == 0) {
       mesh.vertex(mesh_unit.vertex_ptrs[i]).Clear();
       mesh.FreeVertex(mesh_unit.vertex_ptrs[i]);
       mesh_unit.vertex_ptrs[i] = FREE_PTR;
+      mesh_unit.vertex_mutexes[i] = FREE_ENTRY;
     }
   }
 }

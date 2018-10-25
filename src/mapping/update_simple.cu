@@ -41,6 +41,7 @@ void AllocateVoxelArrayKernelDirectional(
     SensorData sensor_data,
     SensorParams sensor_params,
     float4x4 cTw,
+    float4x4 wTc,
     GeometryHelper geometry_helper
 )
 {
@@ -70,7 +71,11 @@ void AllocateVoxelArrayKernelDirectional(
     float4 normal = tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y);
     normal.w = 1;
 
-    float4 normal_world = cTw * normal;
+    float4x4 wTcRotOnly = wTc;
+    wTcRotOnly.m14 = 0;
+    wTcRotOnly.m24 = 0;
+    wTcRotOnly.m34 = 0;
+    float4 normal_world = wTcRotOnly * normal;
     TSDFDirection direction = VectorToTSDFDirection(normal_world);
     allocate_directions[static_cast<size_t>(direction)] = 1;
   }
@@ -166,6 +171,7 @@ void UpdateBlocksSimpleKernelDirectional(
     SensorData sensor_data,
     SensorParams sensor_params,
     float4x4 cTw,
+    float4x4 wTc,
     HashTable hash_table,
     GeometryHelper geometry_helper
 )
@@ -213,12 +219,22 @@ void UpdateBlocksSimpleKernelDirectional(
     sdf = fmaxf(-truncation, sdf);
   }
 
-  /// 4. Find direction to fuse into
+  /// 4. Find TSDF direction to fuse into
   float4 normal = tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y);
   normal.w = 1;
+  if (normal.x == 0 and normal.y == 0 and normal.z == 0)
+  { // No normal value for this coordinate
+    return;
+  }
 
-  float4 normal_world = cTw * normal;
+  float4x4 wTcRotOnly = wTc;
+  wTcRotOnly.m14 = 0;
+  wTcRotOnly.m24 = 0;
+  wTcRotOnly.m34 = 0;
+  float4 normal_world = wTcRotOnly * normal;
   TSDFDirection direction = VectorToTSDFDirection(normal_world);
+//  printf("(%f, %f, %f)[%f, %f] -> %s\n", normal_world.x, normal_world.y, normal_world.z,
+//      std::atan2(normal_world.x, normal_world.z), std::sin(normal_world.y), TSDFDirectionToString(direction));
   Voxel &this_voxel = blocks.GetVoxelArray(entry.ptr, static_cast<size_t>(direction)).voxels[local_idx];
 
   /// 5. Update
@@ -311,6 +327,7 @@ double UpdateBlocksSimpleDirectional(
           sensor.data(),
           sensor.sensor_params(),
           sensor.cTw(),
+          sensor.wTc(),
           geometry_helper
   );
   checkCudaErrors(cudaDeviceSynchronize());
@@ -327,6 +344,7 @@ double UpdateBlocksSimpleDirectional(
           sensor.data(),
           sensor.sensor_params(),
           sensor.cTw(),
+          sensor.wTc(),
           hash_table,
           geometry_helper);
   checkCudaErrors(cudaDeviceSynchronize());

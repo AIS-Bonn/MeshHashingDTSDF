@@ -447,7 +447,7 @@ void MainEngine::ConfigVisualizingEngine(
     bool enable_color
 )
 {
-  vis_engine_.Init("VisEngine", 640, 480);
+  vis_engine_.Init("VisEngine", 1280, 960);
   vis_engine_.set_interaction_mode(enable_navigation);
   vis_engine_.set_light(light);
   vis_engine_.BindMainProgram(mesh_params_.max_vertex_count,

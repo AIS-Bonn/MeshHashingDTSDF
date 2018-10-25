@@ -68,7 +68,7 @@ size_t GetArrayIndex(int x, int y, int width)
 }
 
 __global__
-void ComputeNormalMapKernel(float3 *normal, float *depth,
+void ComputeNormalMapKernel(float4 *normal, float *depth,
                             uint width, uint height,
                             float fx, float fy, float cx, float cy)
 {
@@ -80,7 +80,7 @@ void ComputeNormalMapKernel(float3 *normal, float *depth,
 
   const size_t idx = GetArrayIndex(ux, uy, width);
 
-  normal[idx] = make_float3(0, 0, 0);
+  float3 normal_ = make_float3(0);
   float3 center = GeometryHelper::ImageReprojectToCamera(ux, uy, depth[idx], fx, fy, cx, cy);
   float3 neighbors[8];
   size_t count = 0;
@@ -99,7 +99,7 @@ void ComputeNormalMapKernel(float3 *normal, float *depth,
     float depth_value = depth[GetArrayIndex(u, v, width)];
     if (depth_value == 0.0f or depth_value == MINF)
     {
-      normal[idx] = make_float3(0);
+      normal[idx] = make_float4(0);
       return;
     }
     neighbors[count] = GeometryHelper::ImageReprojectToCamera(u, v, depth_value, fx, fy, cx, cy);
@@ -109,13 +109,13 @@ void ComputeNormalMapKernel(float3 *normal, float *depth,
   for (int i = 0; i < count; i++)
   {
     float3 n = normalize(cross(neighbors[i] - center, neighbors[(i + 1) % 4] - center));
-    if (n.z > 0)
+    if (n.z > 0) // This is an outlier case caused by faulty depth data!
       continue;
 
-    normal[idx] += n;
+    normal_ += n;
   }
 
-  normal[idx] = normalize(normal[idx]);
+  normal[idx] = normalize(make_float4(normal_.x, normal_.y, normal_.z, 1));
 }
 
 //////////
@@ -199,7 +199,7 @@ void ConvertColorFormat(
 __host__
 void ComputeNormalMap(
     float *depth_data,
-    float3 *normal_data,
+    float4 *normal_data,
     SensorParams &params
 )
 {
