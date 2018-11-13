@@ -228,11 +228,11 @@ void MainEngine::Recycle()
       && integrated_frame_count_ % kRecycleGap == kRecycleGap - 1)
   {
     // FIXME: make directional versions of these
-//    StarveOccupiedBlockArray(candidate_entries_, blocks_);
-//
-//    CollectGarbageBlockArray(candidate_entries_,
-//                             blocks_,
-//                             geometry_helper_);
+    StarveOccupiedBlockArray(candidate_entries_, blocks_);
+
+    CollectGarbageBlockArray(candidate_entries_,
+                             blocks_,
+                             geometry_helper_);
     hash_table_.ResetMutexes();
     RecycleGarbageBlockArray(candidate_entries_,
                              blocks_,
