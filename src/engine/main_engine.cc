@@ -7,6 +7,7 @@
 #include "engine/main_engine.h"
 
 #include "core/collect_block_array.h"
+#include <core/directional_tsdf.h>
 #include "localizing/point_to_psdf.h"
 #include "mapping/allocate.h"
 #include "mapping/update_simple.h"
@@ -196,8 +197,7 @@ void MainEngine::Meshing()
                          hash_table_,
                          geometry_helper_,
                          enable_sdf_gradient_);
-  }
-  else
+  } else
   {
     time = MarchingCubes(candidate_entries_,
                          blocks_,
@@ -206,33 +206,26 @@ void MainEngine::Meshing()
                          geometry_helper_,
                          enable_sdf_gradient_);
   }
-  CollectLowSurfelBlocks(candidate_entries_,
-                         blocks_,
-                         hash_table_,
-                         geometry_helper_);
-  if (integrated_frame_count_ % 10 == 0)
-  {
-    RecycleGarbageBlockArray(candidate_entries_,
-                             blocks_,
-                             mesh_,
-                             hash_table_);
-  }
   log_engine_.WriteMeshingTimeStamp(time, integrated_frame_count_);
 }
 
 void MainEngine::Recycle()
 {
+  CollectLowSurfelBlocks(candidate_entries_,
+                         blocks_,
+                         hash_table_,
+                         geometry_helper_);
   // TODO(wei): change it via global parameters
-  int kRecycleGap = 15;
-  if (!map_engine_.enable_bayesian_update()
-      && integrated_frame_count_ % kRecycleGap == kRecycleGap - 1)
+  const static int kRecycleGap = 15;
+  if (integrated_frame_count_ % kRecycleGap == kRecycleGap - 1)
   {
-    // FIXME: make directional versions of these
-    StarveOccupiedBlockArray(candidate_entries_, blocks_);
-
-    CollectGarbageBlockArray(candidate_entries_,
-                             blocks_,
-                             geometry_helper_);
+    if (not map_engine_.enable_bayesian_update())
+    {
+      StarveOccupiedBlockArray(candidate_entries_, blocks_);
+      CollectGarbageBlockArray(candidate_entries_,
+                               blocks_,
+                               geometry_helper_);
+    }
     hash_table_.ResetMutexes();
     RecycleGarbageBlockArray(candidate_entries_,
                              blocks_,
