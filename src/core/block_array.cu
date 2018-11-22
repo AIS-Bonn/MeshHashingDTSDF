@@ -36,6 +36,7 @@ VoxelArray &BlockArray::GetVoxelArray(uint block_idx, size_t voxel_array_idx) co
   return voxel_array_heap_.GetElement(ptr);
 }
 
+__device__
 bool BlockArray::HasVoxelArray(uint block_idx, size_t voxel_array_idx) const
 {
   Block &block = blocks_[block_idx];

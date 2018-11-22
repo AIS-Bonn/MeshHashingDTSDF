@@ -13,6 +13,8 @@ struct __ALIGN__(4) Vertex {
   float3 normal;
   float3 color;
   float  radius;
+
+  /** Counts the number of active references (triangles) to this vertex */
   int    ref_count;
 
   __device__

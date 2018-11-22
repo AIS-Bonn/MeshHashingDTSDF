@@ -146,6 +146,7 @@ uint Mesh::AllocVertex() {
 }
 __device__
 void Mesh::FreeVertex(uint ptr) {
+  vertices[ptr].Clear();
   uint addr = atomicAdd(&vertex_heap_counter_[0], 1);
   vertex_heap_[addr + 1] = ptr;
 }
@@ -160,6 +161,7 @@ uint Mesh::AllocTriangle() {
 }
 __device__
 void Mesh::FreeTriangle(uint ptr) {
+  triangle(ptr).Clear();
   uint addr = atomicAdd(&triangle_heap_counter_[0], 1);
   triangle_heap_[addr + 1] = ptr;
 }

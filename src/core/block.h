@@ -34,8 +34,12 @@ struct __ALIGN__(8) VoxelArray
 struct __ALIGN__(8) Block
 {
   int life_count_down;
-  int inner_surfel_count;
+
+  /** Counts the number of surfaces on the boundary of the block */
   int boundary_surfel_count;
+
+  /** Counts the number of surfaces inside (not on the boundary) the block */
+  int inner_surfel_count;
 
   MeshUnit mesh_units[BLOCK_SIZE];
   VoxelArray *voxel_arrays[6];

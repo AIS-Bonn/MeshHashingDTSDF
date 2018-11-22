@@ -18,7 +18,7 @@ enable_color:           0
 enable_navigation:      0
 enable_global_mesh:     1
 enable_bounding_box:    0
-enable_trajectory:      0
+enable_trajectory:      1
 enable_ray_casting:     0
 
 enable_video_recording:  1

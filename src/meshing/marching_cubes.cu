@@ -34,6 +34,7 @@ static inline int AllocateVertexWithMutex(
     const float3 &vertex_pos,
     Mesh &mesh,
     BlockArray &blocks,
+    size_t voxel_array_idx,
     const HashTable &hash_table,
     GeometryHelper &geometry_helper,
     bool enable_sdf_gradient
@@ -52,7 +53,6 @@ static inline int AllocateVertexWithMutex(
     mesh.vertex(ptr).pos = vertex_pos;
     mesh.vertex(ptr).radius = sqrtf(1.0f / voxel_query.inv_sigma2);
 
-    size_t voxel_array_idx = 0; // FIXME: move/remove/change
     float3 grad;
     bool valid = GetSpatialSDFGradient(
         vertex_pos,
@@ -75,6 +75,7 @@ __global__
 static void VertexExtractionKernel(
     EntryArray candidate_entries,
     BlockArray blocks,
+    size_t voxel_array_idx,
     Mesh mesh,
     HashTable hash_table,
     GeometryHelper geometry_helper,
@@ -83,12 +84,14 @@ static void VertexExtractionKernel(
   const HashEntry &entry = candidate_entries[blockIdx.x];
   Block& block = blocks[entry.ptr];
 
+  if (not blocks.HasVoxelArray(entry.ptr, voxel_array_idx))
+    return;
+
   int3   voxel_base_pos = geometry_helper.BlockToVoxel(entry.pos);
   uint3  offset = geometry_helper.DevectorizeIndex(threadIdx.x);
   int3   voxel_pos = voxel_base_pos + make_int3(offset);
   float3 world_pos = geometry_helper.VoxelToWorld(voxel_pos);
 
-  size_t voxel_array_idx = 0;
 
   MeshUnit &this_mesh_unit = block.mesh_units[threadIdx.x];
   Voxel& this_voxel = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[threadIdx.x];
@@ -103,8 +106,7 @@ static void VertexExtractionKernel(
   float3 p[kVertexCount];
 
   short cube_index = 0;
-  this_mesh_unit.prev_cube_idx = this_mesh_unit.curr_cube_idx;
-  this_mesh_unit.curr_cube_idx = 0;
+  this_mesh_unit.mc_idx[0] = 0;
 
   // inlier ratio
 //  if (this_voxel.inv_sigma2 < 5.0f) return;
@@ -132,7 +134,7 @@ static void VertexExtractionKernel(
     p[i] = world_pos + kVoxelSize * make_float3(kVtxOffset[i]);
   }
 
-  this_mesh_unit.curr_cube_idx = cube_index;
+  this_mesh_unit.mc_idx[0] = cube_index;
   if (cube_index == 0 || cube_index == 255) return;
 
   const int kEdgeCount = 12;
@@ -164,6 +166,7 @@ static void VertexExtractionKernel(
           vertex_pos,
           mesh,
           blocks,
+          voxel_array_idx,
           hash_table, geometry_helper,
           enable_sdf_gradient);
     }
@@ -212,14 +215,14 @@ static void TriangleExtractionKernel(
     }
   }
   /// Cube type unchanged: NO need to update triangles
-//  if (this_cube.curr_cube_idx == this_cube.prev_cube_idx) {
+//  if (this_cube.mc_idx[0] == this_cube.prev_cube_idx) {
 //    blocks[entry.ptr].voxels[local_idx].stats.duration += 1.0f;
 //    return;
 //  }
 //  blocks[entry.ptr].voxels[local_idx].stats.duration = 0;
 
-  if (this_mesh_unit.curr_cube_idx == 0
-      || this_mesh_unit.curr_cube_idx == 255) {
+  if (this_mesh_unit.mc_idx[0] == 0
+      || this_mesh_unit.mc_idx[0] == 255) {
     return;
   }
 
@@ -233,7 +236,7 @@ static void TriangleExtractionKernel(
 
 #pragma unroll 1
   for (int i = 0; i < kEdgeCount; ++i) {
-    if (kCubeEdges[this_mesh_unit.curr_cube_idx] & (1 << i)) {
+    if (kCubeEdges[this_mesh_unit.mc_idx[0]] & (1 << i)) {
       uint4 edge_owner_cube_offset = kEdgeOwnerCubeOffset[i];
 
       MeshUnit &mesh_unit  = GetMeshUnitRef(
@@ -254,7 +257,7 @@ static void TriangleExtractionKernel(
   /// 3. Assign triangles
   int i = 0;
   for (int t = 0;
-       kTriangleVertexEdge[this_mesh_unit.curr_cube_idx][t] != -1;
+       kTriangleVertexEdge[this_mesh_unit.mc_idx[0]][t] != -1;
        t += 3, ++i) {
     int triangle_ptr = this_mesh_unit.triangle_ptrs[i];
     if (triangle_ptr == FREE_PTR) {
@@ -266,9 +269,9 @@ static void TriangleExtractionKernel(
 
     mesh.AssignTriangle(
         mesh.triangle(triangle_ptr),
-        make_int3(vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.curr_cube_idx][t + 0]],
-                  vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.curr_cube_idx][t + 1]],
-                  vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.curr_cube_idx][t + 2]]));
+        make_int3(vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.mc_idx[0]][t + 0]],
+                  vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.mc_idx[0]][t + 1]],
+                  vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.mc_idx[0]][t + 2]]));
     if (!enable_sdf_gradient) {
       mesh.ComputeTriangleNormal(mesh.triangle(triangle_ptr));
     }
@@ -286,7 +289,7 @@ static void RecycleTrianglesKernel(
 
   int i = 0;
   for (int t = 0;
-       kTriangleVertexEdge[mesh_unit.curr_cube_idx][t] != -1;
+       kTriangleVertexEdge[mesh_unit.mc_idx[0]][t] != -1;
        t += 3, ++i);
 
   for (; i < N_TRIANGLE; ++i) {
@@ -295,7 +298,6 @@ static void RecycleTrianglesKernel(
 
     // Clear ref_count of its pointed vertices
     mesh.ReleaseTriangle(mesh.triangle(triangle_ptr));
-    mesh.triangle(triangle_ptr).Clear();
     mesh.FreeTriangle(triangle_ptr);
     mesh_unit.triangle_ptrs[i] = FREE_PTR;
   }
@@ -314,7 +316,6 @@ static void RecycleVerticesKernel(
   for (int i = 0; i < N_VERTEX; ++i) {
     if (mesh_unit.vertex_ptrs[i] != FREE_PTR &&
         mesh.vertex(mesh_unit.vertex_ptrs[i]).ref_count == 0) {
-      mesh.vertex(mesh_unit.vertex_ptrs[i]).Clear();
       mesh.FreeVertex(mesh_unit.vertex_ptrs[i]);
       mesh_unit.vertex_ptrs[i] = FREE_PTR;
       mesh_unit.vertex_mutexes[i] = FREE_ENTRY;
@@ -328,6 +329,7 @@ static void RecycleVerticesKernel(
 float MarchingCubes(
     EntryArray &candidate_entries,
     BlockArray &blocks,
+    size_t voxel_array_idx,
     Mesh &mesh,
     HashTable &hash_table,
     GeometryHelper &geometry_helper,
@@ -348,6 +350,7 @@ float MarchingCubes(
   VertexExtractionKernel << < grid_size, block_size >> > (
       candidate_entries,
           blocks,
+          voxel_array_idx,
           mesh,
           hash_table,
           geometry_helper,

@@ -12,7 +12,6 @@
 #include "visualization/ray_caster.h"
 #include "visualization/bounding_box.h"
 
-// TODO: setup a factory
 class VisualizingEngine {
 public:
   VisualizingEngine() = default;

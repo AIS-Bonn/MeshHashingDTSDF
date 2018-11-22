@@ -29,7 +29,7 @@ struct __ALIGN__(4) MeshUnit {
   int vertex_ptrs   [N_VERTEX];
   int vertex_mutexes[N_VERTEX];
   int triangle_ptrs [N_TRIANGLE];
-  short curr_cube_idx, prev_cube_idx;
+  short mc_idx[2];
 
   __host__ __device__
   void ResetMutexes() {
@@ -57,7 +57,8 @@ struct __ALIGN__(4) MeshUnit {
       triangle_ptrs[i] = FREE_PTR;
     }
 
-    curr_cube_idx = prev_cube_idx = 0;
+    mc_idx[0] = 0;
+    mc_idx[1] = 0;
   }
 };
 
@@ -113,7 +114,7 @@ struct __ALIGN__(4) Voxel {
     color = make_uchar3(c_curr.x + 0.5f, c_curr.y + 0.5f, c_curr.z + 0.5f);
 
     sdf = (sdf * inv_sigma2 + delta.sdf * delta.inv_sigma2) / (inv_sigma2 + delta.inv_sigma2);
-    inv_sigma2 = inv_sigma2 + delta.inv_sigma2;
+    inv_sigma2 += delta.inv_sigma2;
   }
 };
 

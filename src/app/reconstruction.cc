@@ -108,5 +108,8 @@ int main(int argc, char **argv) {
 
   main_engine.FinalLog();
 
+  while(args.enable_navigation and not main_engine.Visualize(cTw))
+    ;
+
   return 0;
 }

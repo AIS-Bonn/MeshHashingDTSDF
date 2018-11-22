@@ -1,6 +1,7 @@
 %YAML:1.0
 
-dataset_path:      "/home/splietke/datasets/TUM/fr3/long_office_household/"
+#dataset_path:      "/home/splietke/datasets/TUM/fr3/long_office_household/"
+dataset_path:      "/home/splietke/projects/directionalTSDF/datasets/test_cube2/"
 
 # Hash params
 bucket_count:      40000
@@ -14,18 +15,30 @@ max_block_count:    100000
 #sdf_upper_bound:           4.0
 #truncation_distance_scale: 0.008
 #truncation_distance:       0.032
+
+#voxel_size:                0.04
+#sdf_upper_bound:           4.0
+#truncation_distance_scale: 0.04
+#truncation_distance:       0.08
+
 voxel_size:                0.05
 sdf_upper_bound:           4.0
 truncation_distance_scale: 0.05
 truncation_distance:       0.10
-weight_sample:             10
+
+weight_sample:             50
 weight_upper_bound:        255
 
 # Sensor params
-fx:              535.4
-fy:              539.2
-cx:              320.1
-cy:              247.6
+# These intrinsics  apparently apply only for color
+#fx:              535.4
+#fy:              539.2
+#cx:              320.1
+#cy:              247.6
+fx:              525.0
+fy:              525.0
+cx:              319.5
+cy:              239.5
 min_depth_range: 0.5
 max_depth_range: 3.00
 range_factor:    0.0002

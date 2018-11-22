@@ -18,6 +18,7 @@
 float MarchingCubes(
     EntryArray& candidate_entries,
     BlockArray& blocks,
+    size_t voxel_array_idx,
     Mesh& mesh,
     HashTable& hash_table,
     GeometryHelper& geometry_helper,

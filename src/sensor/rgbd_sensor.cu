@@ -137,11 +137,26 @@ int Sensor::Process(cv::Mat &depth, cv::Mat &color) {
                                     data_.color_data,
                                     sizeof(float4)*params_.height*params_.width,
                                     cudaMemcpyDeviceToDevice));
+
   checkCudaErrors(cudaMemcpyToArray(data_.normal_array, 0, 0,
                                     data_.normal_data,
                                     sizeof(float4)*params_.height*params_.width,
                                     cudaMemcpyDeviceToDevice));
 
+//  cv::Mat normal_map(params_.height, params_.width, CV_32FC4);
+//  checkCudaErrors(cudaMemcpy(normal_map.data, data_.normal_data,
+//                             sizeof(float4) * params_.height * params_.width,
+//                             cudaMemcpyDeviceToHost));
+//
+//  cv::cvtColor(normal_map, normal_map, CV_RGBA2BGR);
+//  normal_map = cv::abs(normal_map * 255);
+//
+//  cv::cuda::GpuMat input(normal_map);
+//  cv::Mat out;
+//  input.download(out);
+//
+//  cv::imwrite("/tmp/normals_y.png", out);
+//
 //  SaveNormalImage("/tmp/normals.png", data_, params_);
 
   BindCUDATexture();

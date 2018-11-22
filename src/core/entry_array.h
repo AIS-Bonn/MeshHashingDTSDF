@@ -44,8 +44,9 @@ private:
   HashEntry *entries_;
   // @param read-write element
   int       *counter_;       /// atomic counter
-  // @param array
-  uchar     *flags_; /// used in garbage collection
+
+  /** Flag for garbage collection. 1 means remove entry, 0 means do nothing. */
+  uchar     *flags_;
 
 };
 

@@ -197,10 +197,18 @@ void MainEngine::Meshing()
                          hash_table_,
                          geometry_helper_,
                          enable_sdf_gradient_);
+//    time = MarchingCubes(candidate_entries_,
+//                         blocks_,
+//                         static_cast<size_t>(TSDFDirection::FORWARD),
+//                         mesh_,
+//                         hash_table_,
+//                         geometry_helper_,
+//                         enable_sdf_gradient_);
   } else
   {
     time = MarchingCubes(candidate_entries_,
                          blocks_,
+                         0,
                          mesh_,
                          hash_table_,
                          geometry_helper_,

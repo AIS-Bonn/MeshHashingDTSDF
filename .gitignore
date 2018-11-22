@@ -32,6 +32,10 @@
 *.app
 
 build/
+scripts/env
+
+*.swp
+
 # CLion
 cmake-build-release/
 cmake-build-relwithdebinfo/
@@ -39,4 +43,3 @@ cmake-build-debug/
 bin/
 lib/
 .idea/
-result/
