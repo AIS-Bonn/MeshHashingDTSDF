@@ -23,17 +23,20 @@
 /// World <-> Voxel
 
 __device__ __host__
-__inline__ float squaref(float a) {
-  return a*a;
+__inline__ float squaref(float a)
+{
+  return a * a;
 }
 
 __device__ __host__
-__inline__ float gaussian(float x, float u, float squared_sigma) {
-  return 1 / (sqrt(2*M_PI)*sqrt(squared_sigma))
-         * exp(- squaref(x - u) / squared_sigma);
+__inline__ float gaussian(float x, float u, float squared_sigma)
+{
+  return 1 / (sqrt(2 * M_PI) * sqrt(squared_sigma))
+         * exp(-squaref(x - u) / squared_sigma);
 }
 
-struct GeometryHelper {
+struct GeometryHelper
+{
   float voxel_size;
   float truncation_distance;
   float truncation_distance_scale;
@@ -41,33 +44,40 @@ struct GeometryHelper {
   float weight_sample;
 
   GeometryHelper() = default;
-  void Init(const VolumeParams &params) {
+
+  void Init(const VolumeParams &params)
+  {
     voxel_size = params.voxel_size;
     truncation_distance_scale = params.truncation_distance_scale;
     truncation_distance = params.truncation_distance;
     sdf_upper_bound = params.sdf_upper_bound;
     weight_sample = params.weight_sample;
   }
-  GeometryHelper(const VolumeParams &params) {
+
+  GeometryHelper(const VolumeParams &params)
+  {
     Init(params);
   }
 
   __host__ __device__
   inline
-  float3 WorldToVoxelf(const float3 world_pos) {
+  float3 WorldToVoxelf(const float3 world_pos)
+  {
     return world_pos / voxel_size;
   }
 
   __host__ __device__
   inline
-  int3 WorldToVoxeli(const float3 world_pos) {
+  int3 WorldToVoxeli(const float3 world_pos)
+  {
     const float3 p = world_pos / voxel_size;
     return make_int3(p + make_float3(sign(p)) * 0.5f);
   }
 
   __host__ __device__
   inline // no offset here: value is stored 90on the corner of a voxel
-  float3 VoxelToWorld(const int3 voxel_pos) {
+  float3 VoxelToWorld(const int3 voxel_pos)
+  {
     return make_float3(voxel_pos) * voxel_size;
   }
 
@@ -75,13 +85,15 @@ struct GeometryHelper {
 // Corner voxel with smallest xyz
   __host__ __device__
   inline
-  int3 BlockToVoxel(const int3 block_pos) {
+  int3 BlockToVoxel(const int3 block_pos)
+  {
     return block_pos * BLOCK_SIDE_LENGTH;
   }
 
   __host__ __device__
   inline
-  int3 VoxelToBlock(const int3 voxel_pos) {
+  int3 VoxelToBlock(const int3 voxel_pos)
+  {
     int3 pos = voxel_pos;
     pos.x -= (voxel_pos.x < 0) * (BLOCK_SIDE_LENGTH - 1);
     pos.y -= (voxel_pos.y < 0) * (BLOCK_SIDE_LENGTH - 1);
@@ -91,7 +103,8 @@ struct GeometryHelper {
 
   __host__ __device__
   inline
-  uint3 VoxelToOffset(const int3 block_pos, const int3 voxel_pos) {
+  uint3 VoxelToOffset(const int3 block_pos, const int3 voxel_pos)
+  {
     int3 offset = voxel_pos - BlockToVoxel(block_pos);
     return make_uint3(offset);
   }
@@ -99,43 +112,55 @@ struct GeometryHelper {
   /// Block <-> World
   __host__ __device__
   inline
-  float3 BlockToWorld(const int3 block_pos) {
+  float3 BlockToWorld(const int3 block_pos)
+  {
     return VoxelToWorld(BlockToVoxel(block_pos));
   }
 
   __host__ __device__
   inline
-  int3 WorldToBlock(const float3 world_pos) {
+  int3 WorldToBlock(const float3 world_pos)
+  {
     return VoxelToBlock(WorldToVoxeli(world_pos));
   }
 
-//////////
-/// Transforms between coordinates and indices
-/// Idx means local idx inside a block \in [0, 512)
+/**
+ * Transforms between coordinates and indices
+ * @param idx local index inside a block in [0, BLOCK_SIZE)
+ */
   __host__ __device__
   inline
-  uint3 DevectorizeIndex(const uint idx) {
+  uint3 DevectorizeIndex(const uint idx)
+  {
     uint x = idx % BLOCK_SIDE_LENGTH;
     uint y = (idx % (BLOCK_SIDE_LENGTH * BLOCK_SIDE_LENGTH)) / BLOCK_SIDE_LENGTH;
     uint z = idx / (BLOCK_SIDE_LENGTH * BLOCK_SIDE_LENGTH);
     return make_uint3(x, y, z);
   }
 
-/// Computes the linearized index of a local virtual voxel pos; pos \in [0, 8)^3
+/**
+ * Computes the linearized index of a local virtual voxel pos
+ * @param pos in [0, BLOCK_SIDE_LENGTH)^3
+ */
   __host__ __device__
   inline
-  uint VectorizeOffset(const uint3 voxel_local_pos) {
+  uint VectorizeOffset(const uint3 voxel_local_pos)
+  {
     return voxel_local_pos.z * BLOCK_SIDE_LENGTH * BLOCK_SIDE_LENGTH +
            voxel_local_pos.y * BLOCK_SIDE_LENGTH +
            voxel_local_pos.x;
   }
 
-//////////
-/// Truncating distance
+/**
+ * Computes the truncation range for the given depth.
+ * @param z depth value
+ * @return truncation range
+ */
   __host__ __device__
   inline
-  float truncate_distance(const float z) {
-    return truncation_distance +truncation_distance_scale * z;
+  float truncate_distance(const float z)
+  {
+    return truncation_distance + truncation_distance_scale * z;
   }
 
 //////////
@@ -145,7 +170,8 @@ struct GeometryHelper {
   __host__ __device__
   inline
   float2 CameraProjectToImagef(const float3 camera_pos,
-                               float fx, float fy, float cx, float cy) {
+                               float fx, float fy, float cx, float cy)
+  {
     return make_float2(camera_pos.x * fx / camera_pos.z + cx,
                        camera_pos.y * fy / camera_pos.z + cy);
   }
@@ -154,7 +180,8 @@ struct GeometryHelper {
   inline
   int2 CameraProjectToImagei(
       const float3 camera_pos,
-      float fx, float fy, float cx, float cy) {
+      float fx, float fy, float cx, float cy)
+  {
     float2 uv = CameraProjectToImagef(camera_pos, fx, fy, cx, cy);
     return make_int2(uv + make_float2(0.5f, 0.5f));
   }
@@ -163,7 +190,8 @@ struct GeometryHelper {
   static inline
   float3 ImageReprojectToCamera(
       uint ux, uint uy, float depth,
-      float fx, float fy, float cx, float cy) {
+      float fx, float fy, float cx, float cy)
+  {
     const float x = ((float) ux - cx) / fx;
     const float y = ((float) uy - cy) / fy;
     return make_float3(depth * x, depth * y, depth);
@@ -173,12 +201,14 @@ struct GeometryHelper {
 /// maybe used for rendering
   __host__ __device__
   inline
-  float NormalizeDepth(float z, float min_depth, float max_depth) {
+  float NormalizeDepth(float z, float min_depth, float max_depth)
+  {
     return (z - min_depth) / (max_depth - min_depth);
   }
 
   inline
-  float DenormalizeDepth(float z, float min_depth, float max_depth) {
+  float DenormalizeDepth(float z, float min_depth, float max_depth)
+  {
     return z * (max_depth - min_depth) + min_depth;
   }
 
@@ -187,7 +217,8 @@ struct GeometryHelper {
   inline
   bool IsPointInCameraFrustum(const float4x4 &c_T_w,
                               const float3 world_pos,
-                              const SensorParams &sensor_params) {
+                              const SensorParams &sensor_params)
+  {
     float3 camera_pos = c_T_w * world_pos;
     float2 uv = CameraProjectToImagef(camera_pos,
                                       sensor_params.fx, sensor_params.fy,
@@ -209,7 +240,8 @@ struct GeometryHelper {
   inline
   bool IsBlockInCameraFrustum(float4x4 c_T_w,
                               const int3 block_pos,
-                              const SensorParams &sensor_params) {
+                              const SensorParams &sensor_params)
+  {
     float3 world_pos = VoxelToWorld(BlockToVoxel(block_pos))
                        + voxel_size * 0.5f * (BLOCK_SIDE_LENGTH - 1.0f);
     return IsPointInCameraFrustum(c_T_w, world_pos, sensor_params);

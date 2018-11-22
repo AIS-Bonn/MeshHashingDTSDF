@@ -80,21 +80,19 @@ static inline int AllocateVertexWithMutex(
     mesh.vertex(ptr).pos = vertex_pos;
     mesh.vertex(ptr).radius = sqrtf(1.0f / voxel_query.inv_sigma2);
 
-    size_t voxel_array_idx = 0; // FIXME: move/remove/change
-    float3 grad;
+    float3 grad = make_float3(0.0f);
     if (enable_sdf_gradient)
     {
       bool valid = false;
       float l = 0;
-      while (voxel_array_idx < 6 and not valid and not l > 0)
+      for (size_t voxel_array_idx = 0; voxel_array_idx < 6 and not valid and not l > 0; voxel_array_idx++)
       {
-        valid = GetSpatialSDFGradient(
+        valid |= GetSpatialSDFGradient(
             vertex_pos,
             blocks, voxel_array_idx, hash_table,
             geometry_helper,
             &grad);
         l = length(grad);
-        voxel_array_idx++;
       }
       mesh.vertex(ptr).normal = l > 0 && valid ? grad / l : make_float3(0);
     }
