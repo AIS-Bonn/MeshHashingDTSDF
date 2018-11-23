@@ -97,9 +97,8 @@ static inline int AllocateVertexWithMutex(
       mesh.vertex(ptr).normal = l > 0 && valid ? grad / l : make_float3(0);
     }
 
-//    float rho = voxel_query.a / (voxel_query.a + voxel_query.b);
-//    mesh.vertex(ptr).color = ValToRGB(rho, 0.4f, 1.0f);
-    mesh.vertex(ptr).color = ValToRGB(voxel_query.inv_sigma2 / 10000.0f, 0, 1.0f);
+//    mesh.vertex(ptr).color = ValToRGB(voxel_query.inv_sigma2 / 10000.0f, 0, 1.0f);
+    mesh.vertex(ptr).color = make_float3(0.5f);
   }
   return ptr;
 }
@@ -192,7 +191,7 @@ static short2 ComputeCombinedMCIndices(const short mc_indices[6])
         {
           combined[j] &= mc_component;
           break;
-        } else
+        } else if (j == 1)
         {
           printf("Error: marching cubes index could not be combined: (%i, %i) !! %i\n",
                  combined[0], combined[1], mc_component);
@@ -204,44 +203,58 @@ static short2 ComputeCombinedMCIndices(const short mc_indices[6])
   return {combined[0], combined[1]};
 }
 
+/**
+ * Given a direction and a voxel position, fetches the SDF values of the corner points and
+ * computes the MC index.
+ *
+ * @param entry
+ * @param blocks
+ * @param hash_table
+ * @param geometry_helper
+ * @param voxel_pos Voxel position
+ * @param direction SDF direction
+ * @param sdf_array Output array SDF values of 8 voxel corners
+ * @param mc_index Output marching cubes index
+ * @return
+ */
 __device__
 static bool GetVoxelSDFValues(const HashEntry &entry, BlockArray &blocks,
                               HashTable &hash_table, GeometryHelper &geometry_helper,
                               int3 voxel_pos, TSDFDirection direction,
-                              float *sdf_array, short &cube_index)
+                              float *sdf_array, short &mc_index)
 {
   const float kVoxelSize = geometry_helper.voxel_size;
   const float kThreshold = 4 * kVoxelSize;
   const float kIsoLevel = 0;
 
-  cube_index = 0;
+  mc_index = 0;
   Voxel voxel_query;
   for (int i = 0; i < 8; ++i)
   {
-    if (!GetVoxelValue(entry, voxel_pos + kVtxOffset[i],
-                       blocks, static_cast<size_t>(direction), hash_table,
-                       geometry_helper, &voxel_query))
+    if (not GetVoxelValue(entry, voxel_pos + kVtxOffset[i],
+                          blocks, static_cast<size_t>(direction), hash_table,
+                          geometry_helper, &voxel_query))
     {
-      cube_index = -1;
+      mc_index = -1;
       return false;
     }
 
     sdf_array[i] = voxel_query.sdf;
 
     if (fabs(sdf_array[i]) > kThreshold)
-    {
-      cube_index = -1;
+    { // too far away from surface
+      mc_index = -1;
       return false;
     }
 
     float rho = voxel_query.a / (voxel_query.a + voxel_query.b);
-    if (rho < 0.1f || voxel_query.inv_sigma2 < squaref(1.0f / kVoxelSize))
-    {
-      cube_index = -1;
+    if (rho < 0.1f or voxel_query.inv_sigma2 < squaref(1.0f / kVoxelSize) / 4)
+    { // too uncertain (small weight)
+      mc_index = -1;
       return false;
     }
 
-    if (sdf_array[i] < kIsoLevel) cube_index |= (1 << i);
+    mc_index |= (sdf_array[i] < kIsoLevel) * (1 << i);
   }
 
   return true;
@@ -265,31 +278,17 @@ static void VertexExtractionKernel(
   int3 voxel_pos = voxel_base_pos + make_int3(offset);
   float3 world_pos = geometry_helper.VoxelToWorld(voxel_pos);
 
-  size_t voxel_array_idx = 0;
-
   MeshUnit &this_mesh_unit = block.mesh_units[threadIdx.x];
   //////////
   /// 1. Read the scalar values, see mc_tables.h
   const int kVertexCount = 8;
   const float kVoxelSize = geometry_helper.voxel_size;
-  const float kThreshold = 4 * kVoxelSize;
   const float kIsoLevel = 0;
 
-  float d[kVertexCount];
   float3 p[kVertexCount];
 
-  short cube_index = 0;
   this_mesh_unit.mc_idx[0] = 0;
   this_mesh_unit.mc_idx[1] = 0;
-
-  // inlier ratio
-//  if (not blocks.HasVoxelArray(entry.ptr, voxel_array_idx))
-//    return;
-//  Voxel &this_voxel = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[threadIdx.x];
-//  if (this_voxel.inv_sigma2 < 5.0f) return;
-//  float rho = this_voxel.a / (this_voxel.a + this_voxel.b);
-//  if (rho < 0.2f || this_voxel.inv_sigma2 < squaref(0.33f / kVoxelSize))
-//    return;
 
   for (int i = 0; i < 8; ++i)
   {
@@ -469,7 +468,6 @@ static void TriangleExtractionKernel(
   int3 voxel_base_pos = geometry_helper.BlockToVoxel(entry.pos);
   uint3 offset = geometry_helper.DevectorizeIndex(threadIdx.x);
   int3 voxel_pos = voxel_base_pos + make_int3(offset);
-  float3 world_pos = geometry_helper.VoxelToWorld(voxel_pos);
 
   MeshUnit &this_mesh_unit = block.mesh_units[threadIdx.x];
   bool is_inner = IsInner(offset);

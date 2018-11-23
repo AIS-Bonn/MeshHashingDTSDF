@@ -98,12 +98,12 @@ void UpdateBlocksSimpleKernel(
     SensorData sensor_data,
     SensorParams sensor_params,
     float4x4 cTw,
+    bool enable_point_to_plane,
     HashTable hash_table,
     GeometryHelper geometry_helper
 )
 {
-
-  //TODO check if we should load this in shared memory (entries)
+  //TODO check if we should load this in shared memory (candidate_entries)
   /// 1. Select voxel
   const HashEntry &entry = candidate_entries[blockIdx.x];
   int3 voxel_base_pos = geometry_helper.BlockToVoxel(entry.pos);
@@ -124,11 +124,27 @@ void UpdateBlocksSimpleKernel(
     return;
 
   /// 3. Find correspondent depth observation
+
   float depth = tex2D<float>(sensor_data.depth_texture, image_pos.x, image_pos.y);
   if (depth == MINF || depth == 0.0f || depth >= geometry_helper.sdf_upper_bound)
     return;
+  float sdf;
+  if (enable_point_to_plane)
+  { // Use point-to-plane metric (Bylow2013 "Real-Time Camera Tracking and 3D Reconstruction Using Signed Distance Functions")
+    float3 normal = make_float3(tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y));
+    if (normal.x == 0 and normal.y == 0 and normal.z == 0)
+    { // No normal value for this coordinate
+      return;
+    }
 
-  float sdf = depth - camera_pos.z;
+    float3 surface_point = GeometryHelper::ImageReprojectToCamera(image_pos.x, image_pos.y, depth,
+                                                                  sensor_params.fx, sensor_params.fy,
+                                                                  sensor_params.cx, sensor_params.cy);
+    sdf = dot(surface_point - camera_pos, -normal);
+  } else
+  { // Use point-to-point metric
+    sdf = depth - camera_pos.z;
+  }
   float normalized_depth = geometry_helper.NormalizeDepth(
       depth,
       sensor_params.min_depth_range,
@@ -172,6 +188,7 @@ void UpdateBlocksSimpleKernelDirectional(
     SensorParams sensor_params,
     float4x4 cTw,
     float4x4 wTc,
+    bool enable_point_to_plane,
     HashTable hash_table,
     GeometryHelper geometry_helper
 )
@@ -199,8 +216,23 @@ void UpdateBlocksSimpleKernelDirectional(
   float depth = tex2D<float>(sensor_data.depth_texture, image_pos.x, image_pos.y);
   if (depth == MINF || depth == 0.0f || depth >= geometry_helper.sdf_upper_bound)
     return;
+  float sdf;
+  if (enable_point_to_plane)
+  { // Use point-to-plane metric (Bylow2013 "Real-Time Camera Tracking and 3D Reconstruction Using Signed Distance Functions")
+    float3 normal = make_float3(tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y));
+    if (normal.x == 0 and normal.y == 0 and normal.z == 0)
+    { // No normal value for this coordinate
+      return;
+    }
 
-  float sdf = depth - camera_pos.z;
+    float3 surface_point = GeometryHelper::ImageReprojectToCamera(image_pos.x, image_pos.y, depth,
+                                                                  sensor_params.fx, sensor_params.fy,
+                                                                  sensor_params.cx, sensor_params.cy);
+    sdf = dot(surface_point - camera_pos, -normal);
+  } else
+  { // Use point-to-point metric
+    sdf = depth - camera_pos.z;
+  }
   float normalized_depth = geometry_helper.NormalizeDepth(
       depth,
       sensor_params.min_depth_range,
@@ -258,6 +290,7 @@ double UpdateBlocksSimple(
     BlockArray &blocks,
     const size_t voxel_array_idx,
     Sensor &sensor,
+    const RuntimeParams &runtime_params,
     HashTable &hash_table,
     GeometryHelper &geometry_helper
 )
@@ -294,6 +327,7 @@ double UpdateBlocksSimple(
           sensor.data(),
           sensor.sensor_params(),
           sensor.cTw(),
+          runtime_params.enable_point_to_plane,
           hash_table,
           geometry_helper);
   checkCudaErrors(cudaDeviceSynchronize());
@@ -305,6 +339,7 @@ double UpdateBlocksSimpleDirectional(
     EntryArray &candidate_entries,
     BlockArray &blocks,
     Sensor &sensor,
+    const RuntimeParams &runtime_params,
     HashTable &hash_table,
     GeometryHelper &geometry_helper
 )
@@ -345,6 +380,7 @@ double UpdateBlocksSimpleDirectional(
           sensor.sensor_params(),
           sensor.cTw(),
           sensor.wTc(),
+          runtime_params.enable_point_to_plane,
           hash_table,
           geometry_helper);
   checkCudaErrors(cudaDeviceSynchronize());

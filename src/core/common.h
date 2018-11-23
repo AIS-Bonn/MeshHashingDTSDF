@@ -61,6 +61,8 @@ typedef signed char schar;
 
 #define EPSILON    1e-6
 
+const size_t N_DIRECTIONS = 6;
+
 const uint CUDA_THREADS_PER_BLOCK = 256;
 
 //#define STATS

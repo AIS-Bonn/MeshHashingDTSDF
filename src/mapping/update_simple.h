@@ -21,8 +21,9 @@
 double UpdateBlocksSimple(
     EntryArray& candidate_entries,
     BlockArray& blocks,
-    const size_t voxel_array_idx,
+    size_t voxel_array_idx,
     Sensor& sensor,
+    const RuntimeParams &runtime_params,
     HashTable& hash_table,
     GeometryHelper& geometry_helper
 );
@@ -37,6 +38,7 @@ double UpdateBlocksSimpleDirectional(
     EntryArray& candidate_entries,
     BlockArray& blocks,
     Sensor& sensor,
+    const RuntimeParams &runtime_params,
     HashTable& hash_table,
     GeometryHelper& geometry_helper
 );

@@ -138,6 +138,7 @@ void MainEngine::Mapping(Sensor &sensor)
       update_time = UpdateBlocksSimpleDirectional(candidate_entries_,
                                                   blocks_,
                                                   sensor,
+                                                  runtime_params_,
                                                   hash_table_,
                                                   geometry_helper_);
     } else
@@ -146,6 +147,7 @@ void MainEngine::Mapping(Sensor &sensor)
                                        blocks_,
                                        voxel_array_idx,
                                        sensor,
+                                       runtime_params_,
                                        hash_table_,
                                        geometry_helper_);
     }

@@ -16,6 +16,7 @@ void LoadRuntimeParams(std::string path, RuntimeParams& params) {
   params.dataset_type  = (int)fs["dataset_type"];
 
   params.enable_bayesian_update = (int)fs["enable_bayesian_update"];
+  params.enable_point_to_plane = (int)fs["enable_point_to_plane"];
   params.enable_directional_sdf = (int)fs["enable_directional_sdf"];
   params.enable_navigation   = (int)fs["enable_navigation"];
   params.enable_polygon_mode = (int)fs["enable_polygon_mode"];

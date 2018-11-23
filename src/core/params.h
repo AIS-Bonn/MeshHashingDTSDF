@@ -77,6 +77,7 @@ struct SensorParams {
 struct RuntimeParams {
   int  dataset_type;
   bool enable_bayesian_update;
+  bool enable_point_to_plane;
 
   bool enable_directional_sdf;
 
