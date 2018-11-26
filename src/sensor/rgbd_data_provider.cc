@@ -73,12 +73,13 @@ bool RGBDDataProvider::ProvideData(
   ++frame_id;
 
   return true;
-  // TODO: Network situation
 }
 
 bool RGBDDataProvider::ProvideData(cv::Mat &depth,
                               cv::Mat &color,
-                              float4x4 &wTc) {
+                              float4x4 &wTc,
+                              bool start_width_zero_pose
+                              ) {
   if (frame_id >= depth_image_list.size()) {
     LOG(ERROR) << "All images provided!";
     return false;
@@ -92,10 +93,12 @@ bool RGBDDataProvider::ProvideData(cv::Mat &depth,
       cv::cvtColor(color, color, CV_BGR2BGRA);
     }
 
-    wTc = wTcs[0].getInverse() * wTcs[frame_id];
+    if (start_width_zero_pose)
+      wTc = wTcs[0].getInverse() * wTcs[frame_id];
+    else
+      wTc = wTcs[frame_id];
     ++frame_id;
-  } ///while (frame_id >= 1960 && frame_id <= 1985);
+  }
 
   return true;
-  // TODO: Network situation
 }

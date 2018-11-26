@@ -24,7 +24,16 @@ struct RGBDDataProvider {
   /// If read from network/USB, then wait until a mat comes;
   ///                           a while loop might be inside
   bool ProvideData(cv::Mat &depth, cv::Mat &color);
-  bool ProvideData(cv::Mat &depth, cv::Mat &color, float4x4 &wTc);
+
+  /**
+   * Reads the next dataset entry (depth frame + rgb frame + pose).
+   * @param depth
+   * @param color
+   * @param wTc
+   * @param start_width_zero_pose Indicates whether the wTc pose should be converted, s.t. it starts at the origin.
+   * @return
+   */
+  bool ProvideData(cv::Mat &depth, cv::Mat &color, float4x4 &wTc, bool start_width_zero_pose=true);
 };
 
 #endif //MESH_HASHING_RGBD_LOCAL_SEQUENCE_H

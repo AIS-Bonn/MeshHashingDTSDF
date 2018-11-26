@@ -211,11 +211,25 @@ void ComputeNormalMap(
                        (height + threads_per_block - 1) / threads_per_block);
   const dim3 block_size(threads_per_block, threads_per_block);
 
+  // Filter depth image BEFORE normal estimation
+//  cv::cuda::GpuMat depth_img(height, width, CV_32FC1, depth_data);
+//  cv::cuda::GpuMat depth_img_filtered;
+//  cv::cuda::bilateralFilter(depth_img, depth_img_filtered, 7, 100, 10, cv::BORDER_DEFAULT);
+
   ComputeNormalMapKernel << < grid_size, block_size >> > (
+//          reinterpret_cast<float4 *>(depth_img_filtered.data),
       normal_data,
           depth_data,
           width,
           height,
           params.fx, params.fy, params.cx, params.cy
   );
+
+  // Filter normal data AFTER normal estimation
+  cv::cuda::GpuMat normal_map(params.height, params.width, CV_32FC4, normal_data);
+  cv::cuda::GpuMat normal_map_filtered;
+  cv::cuda::bilateralFilter(normal_map, normal_map_filtered, -1, 5, 5, cv::BORDER_DEFAULT);
+  checkCudaErrors(cudaMemcpy(normal_data, normal_map_filtered.data,
+                             sizeof(float4) * params.height * params.width,
+                             cudaMemcpyDeviceToDevice));
 }
