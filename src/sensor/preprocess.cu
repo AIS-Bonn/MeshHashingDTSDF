@@ -68,6 +68,17 @@ size_t GetArrayIndex(int x, int y, int width)
 }
 
 __global__
+void NormalizeNormalsKernel(float4 *normal, uint width)
+{
+  const int ux = blockIdx.x * blockDim.x + threadIdx.x;
+  const int uy = blockIdx.y * blockDim.y + threadIdx.y;
+
+  const size_t idx = GetArrayIndex(ux, uy, width);
+
+  normal[idx] = make_float4(normalize(make_float3(normal[idx])), 1.0f);
+}
+
+__global__
 void ComputeNormalMapKernel(float4 *normal, float *depth,
                             uint width, uint height,
                             float fx, float fy, float cx, float cy)
@@ -115,7 +126,7 @@ void ComputeNormalMapKernel(float4 *normal, float *depth,
     normal_ += n;
   }
 
-  normal[idx] = normalize(make_float4(normal_.x, normal_.y, normal_.z, 1));
+  normal[idx] = make_float4(normalize(make_float3(normal_.x, normal_.y, normal_.z)), 1.0f);
 }
 
 //////////
@@ -214,11 +225,11 @@ void ComputeNormalMap(
   // Filter depth image BEFORE normal estimation
 //  cv::cuda::GpuMat depth_img(height, width, CV_32FC1, depth_data);
 //  cv::cuda::GpuMat depth_img_filtered;
-//  cv::cuda::bilateralFilter(depth_img, depth_img_filtered, 7, 100, 10, cv::BORDER_DEFAULT);
+//  cv::cuda::bilateralFilter(depth_img, depth_img_filtered, -1, 5, 5, cv::BORDER_DEFAULT);
 
   ComputeNormalMapKernel << < grid_size, block_size >> > (
-//          reinterpret_cast<float4 *>(depth_img_filtered.data),
       normal_data,
+//          reinterpret_cast<float *>(depth_img_filtered.data),
           depth_data,
           width,
           height,
@@ -226,10 +237,12 @@ void ComputeNormalMap(
   );
 
   // Filter normal data AFTER normal estimation
-  cv::cuda::GpuMat normal_map(params.height, params.width, CV_32FC4, normal_data);
+  cv::cuda::GpuMat normal_map(height, width, CV_32FC4, normal_data);
   cv::cuda::GpuMat normal_map_filtered;
   cv::cuda::bilateralFilter(normal_map, normal_map_filtered, -1, 5, 5, cv::BORDER_DEFAULT);
   checkCudaErrors(cudaMemcpy(normal_data, normal_map_filtered.data,
-                             sizeof(float4) * params.height * params.width,
+                             sizeof(float4) * height * width,
                              cudaMemcpyDeviceToDevice));
+
+  NormalizeNormalsKernel << < grid_size, block_size >> > (normal_data, width);
 }
