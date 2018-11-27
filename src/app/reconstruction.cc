@@ -102,10 +102,10 @@ int main(int argc, char **argv) {
       break;
 
     main_engine.Log();
-    //main_engine.RecordBlocks();
     main_engine.Recycle();
   }
 
+  main_engine.StoreBlocks("block");
   main_engine.FinalLog();
 
   while(args.enable_navigation and not main_engine.Visualize(cTw))

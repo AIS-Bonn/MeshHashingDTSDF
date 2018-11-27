@@ -16,6 +16,8 @@
 #include "meshing/marching_cubes_directional.h"
 #include "visualization/compress_mesh.h"
 #include "visualization/extract_bounding_box.h"
+#include "main_engine.h"
+
 
 ////////////////////
 /// Host code
@@ -507,4 +509,13 @@ void MainEngine::RecordBlocks(std::string prefix)
   std::stringstream ss("");
   ss << integrated_frame_count_ - 1;
   log_engine_.WriteRawBlocks(block_map, prefix + ss.str());
+}
+
+void MainEngine::StoreBlocks(const std::string &prefix)
+{
+  CollectAllBlocks(hash_table_, candidate_entries_);
+  BlockMap block_map = log_engine_.RecordBlockToMemory(
+      blocks_.GetGPUPtr(), hash_params_.max_block_count,
+      candidate_entries_.GetGPUPtr(), candidate_entries_.count());
+  log_engine_.WriteFormattedBlocks(block_map, prefix);
 }

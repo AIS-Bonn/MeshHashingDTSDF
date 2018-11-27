@@ -40,6 +40,9 @@ FIND_PACKAGE(CUDA REQUIRED)
 # Log utilities
 FIND_PACKAGE(Glog REQUIRED)
 
+FIND_PACKAGE(yaml-cpp REQUIRED)
+INCLUDE_DIRECTORIES(${YAML_CPP_INCLUDE_DIR})
+
 #----------
 ## Found Headers
 GET_PROPERTY(included_dirs
@@ -168,7 +171,9 @@ SET_TARGET_PROPERTIES(mesh-hashing
   PROPERTIES
   COMPILE_DEFINITIONS USE_CUDA_GL)
 TARGET_LINK_LIBRARIES(mesh-hashing
+  stdc++fs
   mesh-hashing-cuda
+  ${YAML_CPP_LIBRARIES}
   gl-util)
 
 #----------

@@ -15,6 +15,13 @@
 // Typically Block is a 8x8x8 voxel array
 struct __ALIGN__(8) VoxelArray
 {
+  /**
+   * Array of voxels.
+   *
+   * The storage order is (xyz) 000, 100, ..., 010, 110, ..., 001, 101,..., 111
+   *
+   * (see function GeometryHelper::VectorizeOffset)
+   */
   Voxel voxels[BLOCK_SIZE];
 
   __host__ __device__

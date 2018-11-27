@@ -7,6 +7,7 @@
 
 #include "core/block.h"
 #include "core/cuda_memory_heap.h"
+#include "geometry/geometry_helper.h"
 
 // Pre-allocated blocks to store the map
 class BlockArray {
@@ -57,6 +58,7 @@ public:
   __host__ Block* GetGPUPtr() const{
     return blocks_;
   }
+
   // @param array
   Block*  blocks_;
 private:

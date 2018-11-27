@@ -64,6 +64,7 @@ public:
 
   void Log();
   void RecordBlocks(std::string prefix = "");
+  void StoreBlocks(const std::string &path);
   void FinalLog();
 
   const int& frame_count() {

@@ -97,7 +97,9 @@ void CollectAllBlocksKernel(
 /// Host code
 ///////////////////
 
-/// Compress discrete hash table entries
+/**
+ * Collect all used blocks from the hash table (compresses discrete hash table entries)
+ */
 void CollectAllBlocks(
     HashTable &hash_table,
     EntryArray &candidate_entries
@@ -116,7 +118,7 @@ void CollectAllBlocks(
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());
 
-  LOG(INFO) << "Block count in all: "
+  LOG(INFO) << "Total block count: "
             << candidate_entries.count();
 }
 
