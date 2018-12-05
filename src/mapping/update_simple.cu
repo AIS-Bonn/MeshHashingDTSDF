@@ -3,6 +3,7 @@
 
 #include "core/block_array.h"
 #include "core/directional_tsdf.h"
+#include "core/functions.h"
 #include "mapping/update_simple.h"
 #include "engine/main_engine.h"
 #include "sensor/rgbd_sensor.h"
@@ -70,7 +71,7 @@ void AllocateVoxelArrayKernelDirectional(
       continue;
 
     float4 normal = tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y);
-    if (normal.x != normal.x or (normal.x == 0 and normal.y == 0 and normal.z == 0))
+    if (not IsValidNormal(normal))
     { // No normal value for this coordinate (NaN or only 0s)
       continue;
     }
@@ -131,13 +132,13 @@ void UpdateBlocksSimpleKernel(
   /// 3. Find correspondent depth observation
 
   float depth = tex2D<float>(sensor_data.depth_texture, image_pos.x, image_pos.y);
-  if (depth == MINF || depth == 0.0f || depth >= geometry_helper.sdf_upper_bound)
+  if (not IsValidDepth(depth) or depth >= geometry_helper.sdf_upper_bound)
     return;
   float sdf;
   if (enable_point_to_plane)
   { // Use point-to-plane metric (Bylow2013 "Real-Time Camera Tracking and 3D Reconstruction Using Signed Distance Functions")
     float3 normal = make_float3(tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y));
-    if (normal.x != normal.x or (normal.x == 0 and normal.y == 0 and normal.z == 0))
+    if (not IsValidNormal(normal))
     { // No normal value for this coordinate
       return;
     }
@@ -220,13 +221,13 @@ void UpdateBlocksSimpleKernelDirectional(
   /// 3. Find correspondent depth observation
   float4 normal = tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y);
   normal.w = 1;
-  if (normal.x != normal.x or (normal.x == 0 and normal.y == 0 and normal.z == 0))
+  if (not IsValidNormal(normal))
   { // No normal value for this coordinate
     return;
   }
 
   float depth = tex2D<float>(sensor_data.depth_texture, image_pos.x, image_pos.y);
-  if (depth == MINF || depth == 0.0f || depth >= geometry_helper.sdf_upper_bound)
+  if (not IsValidDepth(depth) or depth >= geometry_helper.sdf_upper_bound)
     return;
   float sdf;
   if (enable_point_to_plane)

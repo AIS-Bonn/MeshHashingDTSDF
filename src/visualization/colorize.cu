@@ -3,6 +3,7 @@
 #include <device_launch_parameters.h>
 #include <extern/cuda/helper_cuda.h>
 #include "core/params.h"
+#include "core/functions.h"
 #include "visualization/colorize.h"
 #include "visualization/color_util.h"
 
@@ -29,9 +30,7 @@ void ColorizeDepthKernel(float4 *dst, float *src,
   if (x >= 0 && x < width && y >= 0 && y < height) {
 
     float depth = src[y*width + x];
-    if (depth != MINF && depth != 0.0f
-        && depth >= min_depth_range
-        && depth <= max_depth_range) {
+    if (IsValidDepth(depth) and depth >= min_depth_range and depth <= max_depth_range) {
       float3 c = DepthToRGB(depth, min_depth_range, max_depth_range);
       dst[y*width + x] = make_float4(c, 1.0f);
     } else {

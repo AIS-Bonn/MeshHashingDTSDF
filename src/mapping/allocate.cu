@@ -2,8 +2,9 @@
 // Created by wei on 17-10-22.
 //
 
-#include <util/timer.h>
+#include "core/functions.h"
 #include "mapping/allocate.h"
+#include "util/timer.h"
 
 __global__
 void AllocBlockArrayKernel(HashTable   hash_table,
@@ -21,8 +22,7 @@ void AllocBlockArrayKernel(HashTable   hash_table,
   /// TODO(wei): change it here
   /// 1. Get observed data
   float depth = tex2D<float>(sensor_data.depth_texture, x, y);
-  if (depth == MINF || depth == 0.0f
-      || depth >= geometry_helper.sdf_upper_bound)
+  if (not IsValidDepth(depth) or depth >= geometry_helper.sdf_upper_bound)
     return;
 
   float truncation = geometry_helper.truncate_distance(depth);

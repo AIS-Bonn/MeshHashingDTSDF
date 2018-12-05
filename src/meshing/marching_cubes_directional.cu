@@ -305,6 +305,7 @@ static void VertexExtractionKernel(
     is_valid[direction] = GetVoxelSDFValues(entry, blocks, hash_table, geometry_helper,
                                             voxel_pos, TSDFDirection(direction),
                                             sdf_arrays[direction], mc_indices[direction]);
+
     mc_indices[direction] = FilterMCIndexDirection(mc_indices[direction], static_cast<TSDFDirection>(direction));
   }
 

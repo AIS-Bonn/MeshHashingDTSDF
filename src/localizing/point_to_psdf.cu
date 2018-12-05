@@ -2,8 +2,10 @@
 // Created by wei on 17-12-23.
 //
 
-#include <device_launch_parameters.h>
 #include "point_to_psdf.h"
+
+#include <device_launch_parameters.h>
+#include "core/functions.h"
 #include "geometry/spatial_query.h"
 
 template<unsigned int N, unsigned int M>
@@ -39,8 +41,7 @@ void PointToSurfaceKernel(
     return;
 
   float depth = tex2D<float>(sensor_data.depth_texture, x, y);
-  if (depth == MINF || depth == 0.0f
-      || depth >= geometry_helper.sdf_upper_bound)
+  if (not IsValidDepth(depth) or depth >= geometry_helper.sdf_upper_bound)
     return;
 
   float3 point_cam = geometry_helper.ImageReprojectToCamera(x,

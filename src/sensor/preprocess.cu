@@ -1,12 +1,11 @@
 #include <opencv2/opencv.hpp>
 #include <helper_cuda.h>
+#include <extern/cuda/matrix.h>
 #include <geometry/geometry_helper.h>
 #include <device_launch_parameters.h>
 #include <extern/cuda/helper_cuda.h>
 #include "core/params.h"
 #include "preprocess.h"
-
-#define MINF __int_as_float(0xff800000)
 
 __global__
 void ResetInlierRatioKernel(

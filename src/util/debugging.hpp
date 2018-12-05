@@ -1,9 +1,10 @@
 #pragma once
 
 #include <string>
-#include <sensor/rgbd_sensor.h>
 #include <extern/cuda/helper_cuda.h>
-#include <core/directional_tsdf.h>
+#include "core/directional_tsdf.h"
+#include "core/functions.h"
+#include "sensor/rgbd_sensor.h"
 
 inline void SaveNormalImage(const std::string &path, const SensorData &sensor_data, const SensorParams &params)
 {
@@ -33,7 +34,7 @@ inline void SaveDirectionDecisionImage(const std::string &path, const Sensor &se
   for (int i = 0; i < sensor.height() * sensor.width(); i++)
   {
     float4 normal = normal_map.at<float4>(i);
-    if (normal.x != normal.x or (normal.x == 0 and normal.y == 0 and normal.z == 0))
+    if (not IsValidNormal(normal))
     { // No normal value for this coordinate
       continue;
     }

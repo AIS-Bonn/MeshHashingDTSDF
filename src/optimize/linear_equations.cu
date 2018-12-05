@@ -2,8 +2,9 @@
 // Created by wei on 17-10-25.
 //
 
-#include <device_launch_parameters.h>
 #include "linear_equations.h"
+#include <device_launch_parameters.h>
+#include "core/functions.h"
 
 
 __global__
@@ -19,7 +20,7 @@ void SolveSensorDataEquationKernel(
 
   const int idx = y * params.width + x;
   float depth = tex2D<float>(sensor_data.depth_texture, x, y);
-  if (depth == MINF || depth == 0.0f || depth > geometry_helper.sdf_upper_bound)
+  if (not IsValidDepth(depth) or depth > geometry_helper.sdf_upper_bound)
     return;
 
   float3 input_pos = geometry_helper.ImageReprojectToCamera(x, y, depth,

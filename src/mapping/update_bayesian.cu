@@ -7,6 +7,7 @@
 #include "update_bayesian.h"
 
 #include "core/block_array.h"
+#include "core/functions.h"
 #include "mapping/update_simple.h"
 #include "engine/main_engine.h"
 #include "sensor/rgbd_sensor.h"
@@ -67,7 +68,7 @@ void PredictOutlierRatioKernel(
 
   /// 3. Find correspondent depth observation
   float depth = tex2D<float>(sensor_data.depth_texture, image_pos.x, image_pos.y);
-  if (depth == MINF || depth == 0.0f || depth >= geometry_helper.sdf_upper_bound)
+  if (not IsValidDepth(depth) or depth >= geometry_helper.sdf_upper_bound)
     return;
 
   float3 point_cam =
@@ -133,7 +134,7 @@ void UpdateBlocksBayesianKernel(
 
   /// 3. Find correspondent depth observation
   float depth = tex2D<float>(sensor_data.depth_texture, image_pos.x, image_pos.y);
-  if (depth == MINF || depth == 0.0f || depth >= geometry_helper.sdf_upper_bound)
+  if (not IsValidDepth(depth) or depth >= geometry_helper.sdf_upper_bound)
     return;
   int image_idx = image_pos.x + image_pos.y * sensor_params.width;
 
@@ -224,7 +225,7 @@ void BuildSensorDataEquationKernel(
 
   /// 3. Find correspondent depth observation
   float depth = tex2D<float>(sensor_data.depth_texture, image_pos.x, image_pos.y);
-  if (depth == MINF || depth == 0.0f || depth >= geometry_helper.sdf_upper_bound)
+  if (not IsValidDepth(depth) or depth >= geometry_helper.sdf_upper_bound)
     return;
   float sdf = depth - camera_pos.z;
   float truncation = geometry_helper.truncate_distance(depth);
