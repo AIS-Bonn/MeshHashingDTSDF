@@ -7,6 +7,7 @@
 #include "engine/main_engine.h"
 #include "sensor/rgbd_sensor.h"
 #include "geometry/spatial_query.h"
+#include "util/debugging.hpp"
 
 ////////////////////
 /// Device code
@@ -69,6 +70,10 @@ void AllocateVoxelArrayKernelDirectional(
       continue;
 
     float4 normal = tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y);
+    if (normal.x != normal.x or (normal.x == 0 and normal.y == 0 and normal.z == 0))
+    { // No normal value for this coordinate (NaN or only 0s)
+      continue;
+    }
     normal.w = 1;
 
     float4x4 wTcRotOnly = wTc;
@@ -132,7 +137,7 @@ void UpdateBlocksSimpleKernel(
   if (enable_point_to_plane)
   { // Use point-to-plane metric (Bylow2013 "Real-Time Camera Tracking and 3D Reconstruction Using Signed Distance Functions")
     float3 normal = make_float3(tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y));
-    if (normal.x == 0 and normal.y == 0 and normal.z == 0)
+    if (normal.x != normal.x or (normal.x == 0 and normal.y == 0 and normal.z == 0))
     { // No normal value for this coordinate
       return;
     }
@@ -213,22 +218,25 @@ void UpdateBlocksSimpleKernelDirectional(
     return;
 
   /// 3. Find correspondent depth observation
+  float4 normal = tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y);
+  normal.w = 1;
+  if (normal.x != normal.x or (normal.x == 0 and normal.y == 0 and normal.z == 0))
+  { // No normal value for this coordinate
+    return;
+  }
+
   float depth = tex2D<float>(sensor_data.depth_texture, image_pos.x, image_pos.y);
   if (depth == MINF || depth == 0.0f || depth >= geometry_helper.sdf_upper_bound)
     return;
   float sdf;
   if (enable_point_to_plane)
   { // Use point-to-plane metric (Bylow2013 "Real-Time Camera Tracking and 3D Reconstruction Using Signed Distance Functions")
-    float3 normal = make_float3(tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y));
-    if (normal.x == 0 and normal.y == 0 and normal.z == 0)
-    { // No normal value for this coordinate
-      return;
-    }
+    float3 normal_ = make_float3(normal);
 
     float3 surface_point = GeometryHelper::ImageReprojectToCamera(image_pos.x, image_pos.y, depth,
                                                                   sensor_params.fx, sensor_params.fy,
                                                                   sensor_params.cx, sensor_params.cy);
-    sdf = dot(surface_point - camera_pos, -normal);
+    sdf = dot(surface_point - camera_pos, -normal_);
   } else
   { // Use point-to-point metric
     sdf = depth - camera_pos.z;
@@ -252,21 +260,12 @@ void UpdateBlocksSimpleKernelDirectional(
   }
 
   /// 4. Find TSDF direction to fuse into
-  float4 normal = tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y);
-  normal.w = 1;
-  if (normal.x == 0 and normal.y == 0 and normal.z == 0)
-  { // No normal value for this coordinate
-    return;
-  }
-
   float4x4 wTcRotOnly = wTc;
   wTcRotOnly.m14 = 0;
   wTcRotOnly.m24 = 0;
   wTcRotOnly.m34 = 0;
   float4 normal_world = wTcRotOnly * normal;
   TSDFDirection direction = VectorToTSDFDirection(normal_world);
-//  printf("(%f, %f, %f)[%f, %f] -> %s\n", normal_world.x, normal_world.y, normal_world.z,
-//      std::atan2(normal_world.x, normal_world.z), std::sin(normal_world.y), TSDFDirectionToString(direction));
   Voxel &this_voxel = blocks.GetVoxelArray(entry.ptr, static_cast<size_t>(direction)).voxels[local_idx];
 
   /// 5. Update
@@ -371,6 +370,13 @@ double UpdateBlocksSimpleDirectional(
   const uint threads_per_block = BLOCK_SIZE;
   const dim3 grid_size(candidate_entry_count, 1);
   const dim3 block_size(threads_per_block, 1);
+
+  // Save debug image
+//  static uint counter = 0;
+//  std::stringstream ss;
+//  ss << "/tmp/decision/decision" << std::setfill('0') << std::setw(4) << counter << ".png";
+//  SaveDirectionDecisionImage(ss.str(), sensor);
+//  counter +=1;
 
   // 2) Update blocks
   UpdateBlocksSimpleKernelDirectional << < grid_size, block_size >> > (

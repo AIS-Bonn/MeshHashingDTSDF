@@ -143,6 +143,7 @@ int Sensor::Process(cv::Mat &depth, cv::Mat &color) {
                                     sizeof(float4)*params_.height*params_.width,
                                     cudaMemcpyDeviceToDevice));
 
+  // Save debug normal image
 //  static uint counter = 0;
 //  std::stringstream ss;
 //  ss << "/tmp/normals/normals" << std::setfill('0') << std::setw(4) << counter << ".png";

@@ -227,6 +227,7 @@ static bool GetVoxelSDFValues(const HashEntry &entry, BlockArray &blocks,
   const float kThreshold = 4 * kVoxelSize;
   const float kIsoLevel = 0;
 
+
   mc_index = 0;
   Voxel voxel_query;
   for (int i = 0; i < 8; ++i)
@@ -311,6 +312,9 @@ static void VertexExtractionKernel(
   for (int direction = 0; direction < 6; direction++)
   {
     short &mc_index = mc_indices[direction];
+    if (mc_index == 0 or mc_index == 255)
+      continue;
+
     int support = 0;
     for (int i = 0; i < 6; i++)
     {
@@ -426,15 +430,6 @@ static void VertexExtractionKernel(
   short2 combined_mc_indices = ComputeCombinedMCIndices(mc_indices);
   this_mesh_unit.mc_idx[0] = combined_mc_indices.x;
   this_mesh_unit.mc_idx[1] = combined_mc_indices.y;
-
-//  int sum = 0;
-//  for (int i = 0; i < 6; i++)
-//    sum += (mc_indices[i] > 0 and mc_indices[i] < 255);
-//  if (sum > 1)
-//  {
-//    printf("(%i, %i, %i, %i, %i, %i) -> (%i, %i)\n", mc_indices[0], mc_indices[1], mc_indices[2], mc_indices[3],
-//           mc_indices[4], mc_indices[5], combined_mc_indices.x, combined_mc_indices.y);
-//  }
 }
 
 __device__
@@ -538,7 +533,7 @@ static void TriangleExtractionKernel(
         vertex_ptrs[i] = mesh_unit.GetVertex(edge_owner_cube_offset.w + ptr_offset);
         if (vertex_ptrs[i] < 0)
         {
-          printf("Missing vertex MC: %x, (%i,%i, %i, %i, %i, %i) \n", mc_index,
+          printf("Error: Missing vertex MC: %x, (%i,%i, %i, %i, %i, %i) \n", mc_index,
                  mesh_unit.GetVertex(0), mesh_unit.GetVertex(1), mesh_unit.GetVertex(2), mesh_unit.GetVertex(3),
                  mesh_unit.GetVertex(4), mesh_unit.GetVertex(5));
         }

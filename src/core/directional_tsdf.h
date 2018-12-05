@@ -1,9 +1,11 @@
 #pragma once
 
+#include <helper_math.h>
 #include <cstdint>
 #include <cmath>
 #include <string>
 #include <vector_types.h>
+#include "common.h"
 
 enum class TSDFDirection : std::uint8_t
 {
@@ -16,13 +18,13 @@ enum class TSDFDirection : std::uint8_t
 };
 
 
-__constant__ static TSDFDirection DirectionalNeighbors[6][4] = {
+__constant__ static TSDFDirection TSDFDirectionNeighbors[6][4] = {
     {TSDFDirection::LEFT, TSDFDirection::RIGHT, TSDFDirection::FORWARD, TSDFDirection::BACKWARD},
     {TSDFDirection::LEFT, TSDFDirection::RIGHT, TSDFDirection::FORWARD, TSDFDirection::BACKWARD},
-    {TSDFDirection::UP, TSDFDirection::DOWN, TSDFDirection::FORWARD, TSDFDirection::BACKWARD},
-    {TSDFDirection::UP, TSDFDirection::DOWN, TSDFDirection::FORWARD, TSDFDirection::BACKWARD},
-    {TSDFDirection::UP, TSDFDirection::DOWN, TSDFDirection::LEFT, TSDFDirection::RIGHT},
-    {TSDFDirection::UP, TSDFDirection::DOWN, TSDFDirection::LEFT, TSDFDirection::RIGHT},
+    {TSDFDirection::UP,   TSDFDirection::DOWN,  TSDFDirection::FORWARD, TSDFDirection::BACKWARD},
+    {TSDFDirection::UP,   TSDFDirection::DOWN,  TSDFDirection::FORWARD, TSDFDirection::BACKWARD},
+    {TSDFDirection::UP,   TSDFDirection::DOWN,  TSDFDirection::LEFT,    TSDFDirection::RIGHT},
+    {TSDFDirection::UP,   TSDFDirection::DOWN,  TSDFDirection::LEFT,    TSDFDirection::RIGHT},
 };
 
 
@@ -46,32 +48,49 @@ inline const char *TSDFDirectionToString(const TSDFDirection direction)
   }
 }
 
+/**
+ * Computes the compliance of the given normal with each directions.
+ *
+ * The weight is computed by a dot product, so each weight is in [-1, 1]. Negative values mean non-compliance
+ * and a value of 1 is full compliance.
+ * @param normal
+ * @param weights
+ */
+__host__ __device__
+inline void ComputeDirectionWeights(const float4 &normal, float weights[N_DIRECTIONS])
+{
+  const static float3 normal_directions[N_DIRECTIONS] = {
+      {0,  1, 0},  // Up
+      {0,  -1,  0}, // Down
+      {1,  0,  0},  // Left
+      {-1, 0,  0},  // Right
+      {0,  0,  -1},  // Forward
+      {0,  0,  1},  // Backward
+  };
+  float3 vector_ = make_float3(normal);
+  for (size_t i = 0; i < 3; i++)
+  {
+    weights[2 * i] = dot(vector_, normal_directions[2 * i]);
+    weights[2 * i + 1] = -weights[2 * i]; // opposite direction -> negative value
+  }
+}
+
 __host__ __device__
 inline TSDFDirection VectorToTSDFDirection(const float4 &vector)
 {
-  // Tait-Bryan angles
-  float heading = std::atan2(vector.z, vector.x);
-  float elevation = std::sin(vector.y);
-  if (heading < 0)
-    heading += 2 * M_PI;
-  if (elevation < - M_PI_4)
+  float weights[N_DIRECTIONS];
+  ComputeDirectionWeights(vector, weights);
+  float max_weight = -2;
+  int max_direction = -1;
+  for (int i = 0; i < N_DIRECTIONS; i++)
   {
-    return TSDFDirection::DOWN;
-  } else if (elevation > M_PI_4)
-  {
-    return TSDFDirection::UP;
-  } else if ((heading >= 0 and heading < M_PI_4) or (heading >= 7 * M_PI_4 and heading <= 2 * M_PI))
-  {
-    return TSDFDirection::LEFT;
-  } else if (heading >= M_PI_4 and heading < 3 * M_PI_4)
-  {
-    return TSDFDirection::BACKWARD;
-  } else if (heading >= 3 * M_PI_4 and heading < 5 * M_PI_4)
-  {
-    return TSDFDirection::RIGHT;
-  } else if (heading >= 5 * M_PI_4 and heading < 7 * M_PI_4)
-  {
-    return TSDFDirection::FORWARD;
+    if (weights[i] > max_weight)
+    {
+      max_weight = weights[i];
+      max_direction = i;
+    }
   }
-
+  if (max_direction >= 0)
+    return TSDFDirection(max_direction);
+  return TSDFDirection::FORWARD;
 }
