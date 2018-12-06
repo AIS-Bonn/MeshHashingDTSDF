@@ -3,7 +3,6 @@
 #include "geometry/spatial_query.h"
 #include "visualization/color_util.h"
 #include "core/directional_tsdf.h"
-//#define REDUCTION
 
 ////////////////////
 /// class MappingEngine - meshing
@@ -106,7 +105,7 @@ static inline int AllocateVertexWithMutex(
 __device__
 static short FilterMCIndexDirection(const short mc_index, const TSDFDirection direction)
 {
-  if (mc_index < 0)
+  if (mc_index <= 0 or mc_index == 255)
     return mc_index;
 
   short new_index = 0;
@@ -118,6 +117,10 @@ static short FilterMCIndexDirection(const short mc_index, const TSDFDirection di
     new_index |= part_idx;
   }
 
+  if (new_index == 0)
+  { // If 0 after filtering -> invalidate, so it doesn't affect other directions during later filtering process
+    new_index = -1;
+  }
   return new_index;
 }
 
@@ -313,12 +316,13 @@ static void VertexExtractionKernel(
   for (int direction = 0; direction < 6; direction++)
   {
     short &mc_index = mc_indices[direction];
-    if (mc_index == 0 or mc_index == 255)
+    if (mc_index <= 0 or mc_index == 255)
       continue;
 
     int support = 0;
     for (int i = 0; i < 6; i++)
     {
+      // Only use directions, which are potentially compatible for exclusion
       if (not kIndexDirectionCompatibility[mc_index][i])
         continue;
 
@@ -327,7 +331,7 @@ static void VertexExtractionKernel(
       if (mc_indices[i] == 0)
       { // If any of the compatible directions states, that voxel is in front of surface -> down-weight
         support -= 1;
-        // More aggressive version: if ANY of them says no -> discard
+        // Hard threshold:
         mc_index = 0;
         break;
       } else if (i != direction and MCIndexCompatible(mc_index, mc_indices[i]))
