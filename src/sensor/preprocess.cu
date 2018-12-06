@@ -125,7 +125,7 @@ void ComputeNormalMapKernel(float4 *normal, float *depth,
     normal_ += n;
   }
 
-  normal[idx] = make_float4(normalize(make_float3(normal_.x, normal_.y, normal_.z)), 1.0f);
+  normal[idx] = make_float4(normalize(make_float3(normal_.x, normal_.y, normal_.z)), 0.0f);
 }
 
 //////////

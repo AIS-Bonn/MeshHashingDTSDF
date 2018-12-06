@@ -10,6 +10,13 @@
 #include "geometry/spatial_query.h"
 #include "util/debugging.hpp"
 
+// Switches between multi directional fusion (weighted fusion into all compliant directions) and
+// selection fusion (fuse only into most-compliant direction)
+#define MULTI_DIRECTIONAL_FUSION
+
+__device__
+const static float direction_weight_threshold = 0.3826834323650898f; // approx of sin(pi/8)
+
 ////////////////////
 /// Device code
 ////////////////////
@@ -82,8 +89,19 @@ void AllocateVoxelArrayKernelDirectional(
     wTcRotOnly.m24 = 0;
     wTcRotOnly.m34 = 0;
     float4 normal_world = wTcRotOnly * normal;
+
+#ifdef MULTI_DIRECTIONAL_FUSION
+    float weights[N_DIRECTIONS];
+    ComputeDirectionWeights(normal_world, weights);
+
+    for (size_t direction = 0; direction < N_DIRECTIONS; direction++)
+    {
+      allocate_directions[direction] |= (weights[direction] >= direction_weight_threshold);
+    }
+#else
     TSDFDirection direction = VectorToTSDFDirection(normal_world);
     allocate_directions[static_cast<size_t>(direction)] = 1;
+#endif // MULTI_DIRECTIONAL_FUSION
   }
 
   for (uint i = 0; i < 6; i++)
@@ -130,7 +148,6 @@ void UpdateBlocksSimpleKernel(
     return;
 
   /// 3. Find correspondent depth observation
-
   float depth = tex2D<float>(sensor_data.depth_texture, image_pos.x, image_pos.y);
   if (not IsValidDepth(depth) or depth >= geometry_helper.sdf_upper_bound)
     return;
@@ -260,29 +277,53 @@ void UpdateBlocksSimpleKernelDirectional(
     sdf = fmaxf(-truncation, sdf);
   }
 
-  /// 4. Find TSDF direction to fuse into
+  /// 4. Find TSDF direction and Update
   float4x4 wTcRotOnly = wTc;
   wTcRotOnly.m14 = 0;
   wTcRotOnly.m24 = 0;
   wTcRotOnly.m34 = 0;
   float4 normal_world = wTcRotOnly * normal;
-  TSDFDirection direction = VectorToTSDFDirection(normal_world);
-  Voxel &this_voxel = blocks.GetVoxelArray(entry.ptr, static_cast<size_t>(direction)).voxels[local_idx];
 
-  /// 5. Update
-  Voxel delta;
-  delta.sdf = sdf;
-  delta.inv_sigma2 = inv_sigma2;
+#ifdef MULTI_DIRECTIONAL_FUSION
+  float weights[N_DIRECTIONS];
+  ComputeDirectionWeights(normal_world, weights);
+  for (size_t direction = 0; direction < N_DIRECTIONS; direction++)
+  {
+    if (weights[direction] < direction_weight_threshold)
+      continue;
 
-  if (sensor_data.color_data)
-  {
-    float4 color = tex2D<float4>(sensor_data.color_texture, image_pos.x, image_pos.y);
-    delta.color = make_uchar3(255 * color.x, 255 * color.y, 255 * color.z);
-  } else
-  {
-    delta.color = make_uchar3(0, 255, 0);
+    Voxel &voxel = blocks.GetVoxelArray(entry.ptr, direction).voxels[local_idx];
+    Voxel delta;
+    delta.sdf = sdf;
+    delta.inv_sigma2 = inv_sigma2 * weights[direction]; // additionally weight by normal-direction-compliance
+
+    if (sensor_data.color_data)
+    {
+      float4 color = tex2D<float4>(sensor_data.color_texture, image_pos.x, image_pos.y);
+      delta.color = make_uchar3(255 * color.x, 255 * color.y, 255 * color.z);
+    } else
+    {
+      delta.color = make_uchar3(0, 255, 0);
+    }
+    voxel.Update(delta);
   }
-  this_voxel.Update(delta);
+#else
+    TSDFDirection direction = VectorToTSDFDirection(normal_world);
+    Voxel &voxel = blocks.GetVoxelArray(entry.ptr, static_cast<size_t>(direction)).voxels[local_idx];
+    Voxel delta;
+    delta.sdf = sdf;
+    delta.inv_sigma2 = inv_sigma2;
+
+    if (sensor_data.color_data)
+    {
+      float4 color = tex2D<float4>(sensor_data.color_texture, image_pos.x, image_pos.y);
+      delta.color = make_uchar3(255 * color.x, 255 * color.y, 255 * color.z);
+    } else
+    {
+      delta.color = make_uchar3(0, 255, 0);
+    }
+    voxel.Update(delta);
+#endif // MULTI_DIRECTIONAL_FUSION
 }
 
 double UpdateBlocksSimple(
