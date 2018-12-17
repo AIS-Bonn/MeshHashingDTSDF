@@ -14,6 +14,7 @@
 
 /**
  * Interpolate the surface offset between two voxel vertices given their SDF values.
+ * The offset denotes the distance from v1 to the iso surface in [0, 1] (-> voxel side length)
  * @param v1 SDF value of corner 1
  * @param v2 SDF value of corner 2
  * @param isolevel Surface iso level
@@ -102,8 +103,74 @@ static inline int AllocateVertexWithMutex(
   return ptr;
 }
 
+/**
+ * Check, whether the given MC index is compatible to the direction.
+ *
+ * @param mc_index MC index
+ * @param direction Direction
+ * @param sdf SDF values of voxel corners
+ * @return
+ */
 __device__
-static short FilterMCIndexDirection(const short mc_index, const TSDFDirection direction)
+static bool IsMCIndexDirectionCompatible(const short mc_index, const TSDFDirection direction, const float sdf[8])
+{
+  // Table containing for each direction:
+  // 4 opposite edge pairs, each of which is checked individually.
+  const static size_t view_direction_edges_to_check[6][8] = {
+      {0, 4, 1, 5, 2,  6,  3,  7},
+      {4, 0, 5, 1, 6,  2,  7,  3},
+      {1, 3, 5, 7, 9,  8,  10, 11},
+      {3, 1, 7, 5, 8,  9,  11, 10},
+      {2, 0, 6, 4, 10, 9,  11, 8},
+      {0, 2, 4, 6, 8,  11, 9,  10}
+  };
+  if (kIndexDirectionCompatibility[mc_index][static_cast<size_t>(direction)] == 0)
+    return false;
+  if (kIndexDirectionCompatibility[mc_index][static_cast<size_t>(direction)] == 2)
+  {
+    for (int e = 0; e < 4; e++)
+    {
+      const size_t edge_idx = view_direction_edges_to_check[static_cast<size_t>(direction)][2 * e];
+      const size_t opposite_edge_idx = view_direction_edges_to_check[static_cast<size_t>(direction)][2 * e + 1];
+      int2 edge = kEdgeEndpointVertices[edge_idx];
+      int2 opposite_edge = kEdgeEndpointVertices[opposite_edge_idx];
+
+      int2 endpoint_values;
+      endpoint_values.x = (mc_index & (1 << edge.x)) > 0;
+      endpoint_values.y = (mc_index & (1 << edge.y)) > 0;
+
+      // If edge has NO zero-crossing -> continue
+      if (endpoint_values.x + endpoint_values.y != 1)
+        continue;
+
+      // Swap vertex indices, s.t. first endpoint is behind the surface
+      if (endpoint_values.y == 1)
+      {
+        int tmp;
+        tmp = edge.x;
+        edge.x = edge.y;
+        edge.y = tmp;
+        tmp = opposite_edge.x;
+        opposite_edge.x = opposite_edge.y;
+        opposite_edge.y = tmp;
+      }
+
+      float offset = InterpolateSurfaceOffset(sdf[edge.x], sdf[edge.y], 0);
+      float opposite_offset = InterpolateSurfaceOffset(sdf[opposite_edge.x], sdf[opposite_edge.y], 0);
+
+      // If interpolated surface more than 90 degrees from view direction vector -> discard
+      if (offset > opposite_offset)
+      {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+
+__device__
+static short FilterMCIndexDirection(const short mc_index, const TSDFDirection direction, const float sdf[8])
 {
   if (mc_index <= 0 or mc_index == 255)
     return mc_index;
@@ -112,7 +179,7 @@ static short FilterMCIndexDirection(const short mc_index, const TSDFDirection di
   for (int component = 0; component < 4 and kIndexDecomposition[mc_index][component] != -1; component++)
   {
     const short part_idx = kIndexDecomposition[mc_index][component];
-    if (not kIndexDirectionCompatibility[part_idx][static_cast<size_t>(direction)])
+    if (not IsMCIndexDirectionCompatible(part_idx, direction, sdf))
       continue;
     new_index |= part_idx;
   }
@@ -301,6 +368,7 @@ static void VertexExtractionKernel(
 
   // 1) Collect SDF values and MC indices for each direction
   short mc_indices[6];
+  short mc_indices_[6];
   float sdf_arrays[6][8];
   bool is_valid[6];
   for (int direction = 0; direction < 6; direction++)
@@ -308,8 +376,10 @@ static void VertexExtractionKernel(
     is_valid[direction] = GetVoxelSDFValues(entry, blocks, hash_table, geometry_helper,
                                             voxel_pos, TSDFDirection(direction),
                                             sdf_arrays[direction], mc_indices[direction]);
+    mc_indices_[direction] = mc_indices[direction];
 
-    mc_indices[direction] = FilterMCIndexDirection(mc_indices[direction], static_cast<TSDFDirection>(direction));
+    mc_indices[direction] = FilterMCIndexDirection(mc_indices[direction], static_cast<TSDFDirection>(direction),
+                                                   sdf_arrays[direction]);
   }
 
   // 2) Check compatibility of each pair of mc indices to filter out wrong contours
@@ -323,7 +393,7 @@ static void VertexExtractionKernel(
     for (int i = 0; i < 6; i++)
     {
       // Only use directions, which are potentially compatible for exclusion
-      if (not kIndexDirectionCompatibility[mc_index][i])
+      if (kIndexDirectionCompatibility[mc_index][i] == 0)
         continue;
 
       if (mc_indices[i] < 0)
