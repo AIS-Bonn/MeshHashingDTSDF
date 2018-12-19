@@ -635,6 +635,14 @@ static void TriangleExtractionKernel(
       }
       this_mesh_unit.triangle_ptrs[i + offset] = triangle_ptr;
 
+      if (vertex_ptrs[kTriangleVertexEdge[mc_index][t + 0]] < 0 or
+          vertex_ptrs[kTriangleVertexEdge[mc_index][t + 1]] < 0 or
+          vertex_ptrs[kTriangleVertexEdge[mc_index][t + 2]] < 0)
+      {
+        mesh.FreeTriangle(triangle_ptr);
+        this_mesh_unit.triangle_ptrs[i + offset] = FREE_PTR;
+        continue;
+      }
       mesh.AssignTriangle(
           mesh.triangle(triangle_ptr),
           make_int3(vertex_ptrs[kTriangleVertexEdge[mc_index][t + 0]],
