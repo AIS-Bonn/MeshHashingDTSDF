@@ -181,7 +181,7 @@ void RecycleGarbageTrianglesKernel(
     if (triangle_ptr == FREE_PTR) continue;
 
     // Clear ref_count of its pointed vertices
-    mesh.ReleaseTriangle(mesh.triangle(triangle_ptr));
+    mesh.ReleaseTriangleVertexReferences(mesh.triangle(triangle_ptr));
     mesh.FreeTriangle(triangle_ptr);
     mesh_unit.triangle_ptrs[i] = FREE_PTR;
   }

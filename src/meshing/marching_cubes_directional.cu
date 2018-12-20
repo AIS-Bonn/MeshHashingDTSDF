@@ -606,17 +606,11 @@ static void TriangleExtractionKernel(
             geometry_helper);
 
         vertex_ptrs[i] = mesh_unit.GetVertex(edge_owner_cube_offset.w + ptr_offset);
-        if (vertex_ptrs[i] < 0)
-        {
-          printf("Error: Missing vertex MC: %x, (%i,%i, %i, %i, %i, %i) \n", mc_index,
-                 mesh_unit.GetVertex(0), mesh_unit.GetVertex(1), mesh_unit.GetVertex(2), mesh_unit.GetVertex(3),
-                 mesh_unit.GetVertex(4), mesh_unit.GetVertex(5));
-        }
         mesh_unit.ResetMutexes();
       }
     }
 
-    int offset = idx * 3;
+    int ptr_offset = idx * 3;
 
     //////////
     /// 3. Assign triangles
@@ -625,25 +619,26 @@ static void TriangleExtractionKernel(
          kTriangleVertexEdge[mc_index][t] != -1;
          t += 3, ++i)
     {
-      int triangle_ptr = this_mesh_unit.triangle_ptrs[i + offset];
+      int triangle_ptr = this_mesh_unit.triangle_ptrs[i + ptr_offset];
       if (triangle_ptr == FREE_PTR)
       {
         triangle_ptr = mesh.AllocTriangle();
       } else
       {
-        mesh.ReleaseTriangle(mesh.triangle(triangle_ptr));
+        mesh.ReleaseTriangleVertexReferences(mesh.triangle(triangle_ptr));
       }
-      this_mesh_unit.triangle_ptrs[i + offset] = triangle_ptr;
+      this_mesh_unit.triangle_ptrs[i + ptr_offset] = triangle_ptr;
+
 
       if (vertex_ptrs[kTriangleVertexEdge[mc_index][t + 0]] < 0 or
           vertex_ptrs[kTriangleVertexEdge[mc_index][t + 1]] < 0 or
           vertex_ptrs[kTriangleVertexEdge[mc_index][t + 2]] < 0)
       {
-        mesh.FreeTriangle(triangle_ptr);
-        this_mesh_unit.triangle_ptrs[i + offset] = FREE_PTR;
+        // If one of the vertex pointers does not exist, don't assign triangle
+        // (This is expected behavior from combining neighboring marching cubes indices)
         continue;
       }
-      mesh.AssignTriangle(
+      mesh.AssignTriangleVertexReferences(
           mesh.triangle(triangle_ptr),
           make_int3(vertex_ptrs[kTriangleVertexEdge[mc_index][t + 0]],
                     vertex_ptrs[kTriangleVertexEdge[mc_index][t + 1]],
@@ -666,22 +661,32 @@ static void RecycleTrianglesKernel(
   const HashEntry &entry = candidate_entries[blockIdx.x];
   MeshUnit &mesh_unit = blocks[entry.ptr].mesh_units[threadIdx.x];
 
-
   for (int idx = 0; idx < 2; idx++)
   {
     short mc_index = mesh_unit.mc_idx[idx];
-    int i = 0;
-    for (int t = 0; kTriangleVertexEdge[mc_index][t] != -1; t += 3, ++i);
+    int i = idx * N_TRIANGLE / 2; // offset
 
-    i += idx * N_TRIANGLE / 2; // offset
+    // Remove triangles with at least one invalid vertex pointer
+    for (int t = 0; kTriangleVertexEdge[mc_index][t] != -1; t += 3, ++i)
+    {
+      int triangle_ptr = mesh_unit.triangle_ptrs[i];
+      if (triangle_ptr == FREE_PTR) continue;
+      Triangle &triangle = mesh.triangle(mesh_unit.triangle_ptrs[i]);
+      if (triangle.vertex_ptrs.x < 0 or triangle.vertex_ptrs.y < 0 or triangle.vertex_ptrs.z < 0)
+      {
+        mesh.FreeTriangle(triangle_ptr);
+        mesh_unit.triangle_ptrs[i] = FREE_PTR;
+      }
+    }
 
-    for (; i < N_TRIANGLE / 2; ++i)
+    // Remove triangles, that cannot exist according to MC index
+    for (; i < N_TRIANGLE / (2 - idx); ++i)
     {
       int triangle_ptr = mesh_unit.triangle_ptrs[i];
       if (triangle_ptr == FREE_PTR) continue;
 
       // Clear ref_count of its pointed vertices
-      mesh.ReleaseTriangle(mesh.triangle(triangle_ptr));
+      mesh.ReleaseTriangleVertexReferences(mesh.triangle(triangle_ptr));
       mesh.FreeTriangle(triangle_ptr);
       mesh_unit.triangle_ptrs[i] = FREE_PTR;
     }

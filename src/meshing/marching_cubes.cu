@@ -263,11 +263,11 @@ static void TriangleExtractionKernel(
     if (triangle_ptr == FREE_PTR) {
       triangle_ptr = mesh.AllocTriangle();
     } else {
-      mesh.ReleaseTriangle(mesh.triangle(triangle_ptr));
+      mesh.ReleaseTriangleVertexReferences(mesh.triangle(triangle_ptr));
     }
     this_mesh_unit.triangle_ptrs[i] = triangle_ptr;
 
-    mesh.AssignTriangle(
+    mesh.AssignTriangleVertexReferences(
         mesh.triangle(triangle_ptr),
         make_int3(vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.mc_idx[0]][t + 0]],
                   vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.mc_idx[0]][t + 1]],
@@ -297,7 +297,7 @@ static void RecycleTrianglesKernel(
     if (triangle_ptr == FREE_PTR) continue;
 
     // Clear ref_count of its pointed vertices
-    mesh.ReleaseTriangle(mesh.triangle(triangle_ptr));
+    mesh.ReleaseTriangleVertexReferences(mesh.triangle(triangle_ptr));
     mesh.FreeTriangle(triangle_ptr);
     mesh_unit.triangle_ptrs[i] = FREE_PTR;
   }

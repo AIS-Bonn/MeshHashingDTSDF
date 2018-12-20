@@ -157,26 +157,35 @@ uint Mesh::AllocTriangle() {
   if (addr < MEMORY_LIMIT) {
     printf("triangle heap: %d -> %d\n", addr, triangle_heap_[addr]);
   }
+  triangle(triangle_heap_[addr]).Clear();
   return triangle_heap_[addr];
 }
 __device__
 void Mesh::FreeTriangle(uint ptr) {
-  triangle(ptr).Clear();
+  ReleaseTriangleVertexReferences(triangle(ptr));
   uint addr = atomicAdd(&triangle_heap_counter_[0], 1);
   triangle_heap_[addr + 1] = ptr;
 }
 
-/// Release is NOT always a FREE operation
+/**
+ * Releases the references to the current set of vertex pointers.
+ * This is NOT equal to a free operation!
+ * @param triangle
+ */
 __device__
-void Mesh::ReleaseTriangle(Triangle& triangle) {
+void Mesh::ReleaseTriangleVertexReferences(Triangle &triangle) {
   int3 vertex_ptrs = triangle.vertex_ptrs;
-  atomicSub(&vertices[vertex_ptrs.x].ref_count, 1);
-  atomicSub(&vertices[vertex_ptrs.y].ref_count, 1);
-  atomicSub(&vertices[vertex_ptrs.z].ref_count, 1);
+  if (vertex_ptrs.x >= 0)
+    atomicSub(&vertices[vertex_ptrs.x].ref_count, 1);
+  if (vertex_ptrs.y >= 0)
+    atomicSub(&vertices[vertex_ptrs.y].ref_count, 1);
+  if (vertex_ptrs.z >= 0)
+    atomicSub(&vertices[vertex_ptrs.z].ref_count, 1);
+  triangle.Clear();
 }
 
 __device__
-void Mesh::AssignTriangle(Triangle& triangle, int3 vertex_ptrs) {
+void Mesh::AssignTriangleVertexReferences(Triangle &triangle, int3 vertex_ptrs) {
   triangle.vertex_ptrs = vertex_ptrs;
   atomicAdd(&vertices[vertex_ptrs.x].ref_count, 1);
   atomicAdd(&vertices[vertex_ptrs.y].ref_count, 1);

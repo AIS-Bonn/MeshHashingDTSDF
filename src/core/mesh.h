@@ -54,8 +54,8 @@ public:
   __device__ void FreeTriangle(uint ptr);
 
   /// Release is NOT always a FREE operation
-  __device__ void ReleaseTriangle(Triangle& triangle);
-  __device__ void AssignTriangle(Triangle& triangle, int3 vertex_ptrs);
+  __device__ void ReleaseTriangleVertexReferences(Triangle &triangle);
+  __device__ void AssignTriangleVertexReferences(Triangle &triangle, int3 vertex_ptrs);
   __device__ void ComputeTriangleNormal(Triangle& triangle);
 
   MeshParams mesh_params_;
