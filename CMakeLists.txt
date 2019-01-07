@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 PROJECT(mesh-hashing C CXX)
 
-set(CUDA_TOOLKIT_ROOT_DIR "/usr/local/cuda-9.2")
-SET(OpenCV_DIR "/usr/local/share/OpenCV")
+set(OpenGL_GL_PREFERENCE GLVND)
 
 #----------
 # C++ version setting
@@ -13,7 +12,7 @@ SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -Wall")
 #----------
 # CUDA compilation settings
 set(CUDA_SEPARABLE_COMPILATION ON) # enable splitting code in .h and .cu files (otherwise linking issues)
-LIST(APPEND CUDA_NVCC_FLAGS -gencode=arch=compute_30,code=sm_30)
+LIST(APPEND CUDA_NVCC_FLAGS -gencode=arch=compute_50,code=sm_50)
 
 #----------
 # Project variable configurations
