@@ -20,6 +20,8 @@ public:
 
   __host__ void Reset();
 
+  __host__ void CopyPtrsToHost(uint *array, uint &counter);
+
   __device__
   uint AllocElement();
 

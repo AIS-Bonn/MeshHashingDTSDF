@@ -60,11 +60,31 @@ int BlockArray::AllocateVoxelArrayWithMutex(
       {
         block.voxel_array_ptrs[voxel_array_idx] = ptr;
         block.voxel_arrays[voxel_array_idx] = &voxel_array_heap_.GetElement(ptr);
+        block.voxel_arrays[voxel_array_idx]->Clear();
       }
     } // Ensure that it is only allocated once
   }
 
   return ptr;
+}
+
+__device__
+void BlockArray::FreeBlock(uint idx)
+{
+#pragma unroll 6
+  for (int i = 0; i < N_DIRECTIONS; i++)
+  {
+    int ptr = blocks_[idx].voxel_array_ptrs[i];
+    if (ptr != FREE_PTR)
+    {
+      int lock = atomicExch(&(blocks_[idx].voxel_array_mutexes[i]), FREE_ENTRY);
+      if (lock != FREE_ENTRY)
+      {
+        voxel_array_heap_.FreeElement(ptr);
+      }
+    }
+  }
+  blocks_[idx].Clear();
 }
 
 ////////////////////

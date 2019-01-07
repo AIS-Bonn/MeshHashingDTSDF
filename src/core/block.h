@@ -63,7 +63,7 @@ struct __ALIGN__(8) Block
 #ifdef __CUDA_ARCH__
 #pragma unroll 6
 #endif
-    for (uint i = 0; i < 6; ++i)
+    for (uint i = 0; i < N_DIRECTIONS; ++i)
     {
       voxel_arrays[i] = nullptr;
       voxel_array_ptrs[i] = FREE_PTR;

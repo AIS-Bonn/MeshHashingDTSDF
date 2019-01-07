@@ -1,4 +1,6 @@
 #include "core/cuda_memory_heap.h"
+#include "cuda_memory_heap.h"
+
 
 #include <typeinfo>
 #include <glog/logging.h>
@@ -35,7 +37,7 @@ template<typename T>
 __device__
 void CudaMemoryHeap<T>::FreeElement(const uint ptr)
 {
-  uint addr = atomicAdd(heap_counter_, 1);
+  uint addr = atomicAdd(heap_counter_, 1) + 1;
   heap_[addr] = ptr;
 }
 
@@ -44,6 +46,13 @@ __device__
 T &CudaMemoryHeap<T>::GetElement(const uint ptr) const
 {
   return elements_[ptr];
+}
+
+template<typename T>
+void CudaMemoryHeap<T>::CopyPtrsToHost(uint *array, uint &counter)
+{
+  checkCudaErrors(cudaMemcpy(&counter, heap_counter_, sizeof(uint), cudaMemcpyDeviceToHost));
+  checkCudaErrors(cudaMemcpy(array, heap_, elements_count_ * sizeof(uint), cudaMemcpyDeviceToHost));
 }
 
 ////////////////////
