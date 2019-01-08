@@ -77,6 +77,80 @@ void NormalizeNormalsKernel(float4 *normal, uint width)
   normal[idx] = make_float4(normalize(make_float3(normal[idx])), 1.0f);
 }
 
+/**
+ * Implementation from BundleFusion
+ * Copyright (c) 2017 by Angela Dai and Matthias Niessner
+ */
+inline __device__ float gaussD(float sigma, int x, int y)
+{
+  return exp(-((x * x + y * y) / (2.0f * sigma * sigma)));
+}
+
+/**
+ * Implementation from BundleFusion
+ * Copyright (c) 2017 by Angela Dai and Matthias Niessner
+ */
+inline __device__ float gaussR(float sigma, float dist)
+{
+  return exp(-(dist * dist) / (2.0 * sigma * sigma));
+}
+
+/**
+ * Implementation from BundleFusion
+ * Copyright (c) 2017 by Angela Dai and Matthias Niessner
+ *
+ * @param input
+ * @param output
+ * @param sigma_d
+ * @param sigma_r
+ */
+__global__
+void BilateralFilterKernel(float4 *input, float4 *output, float sigma_d, float sigma_r, uint width, uint height)
+{
+  const int ux = blockIdx.x * blockDim.x + threadIdx.x;
+  const int uy = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (ux >= width or uy >= height)
+    return;
+
+  const uint idx = uy * width + ux;
+
+  output[idx] = make_float4(MINF);
+  output[idx] = make_float4(42.0);
+
+  const float4 center = input[idx];
+  if (center.x == MINF or center.y == MINF or center.z == MINF or center.w == MINF)
+    return;
+
+  float4 sum = make_float4(0.0f);
+  float sum_weight = 0.0f;
+
+  const uint radius = (uint) ceil(2.0 * sigma_d);
+  for (int i = ux - radius; i <= ux + radius; i++)
+  {
+    for (int j = uy - radius; j <= uy + radius; j++)
+    {
+      if (i < 0 or j < 0 or i >= width or j >= height)
+        continue;
+
+      const float4 value = input[j * width + i];
+
+      if (value.x == MINF or value.y == MINF or value.z == MINF or value.w == MINF)
+        continue;
+
+      const float weight = gaussD(sigma_d, i - ux, j - uy) * gaussR(sigma_r, length(value - center));
+
+      sum += weight * value;
+      sum_weight += weight;
+    }
+  }
+
+  if (sum_weight >= 0.0f)
+  {
+    output[idx] = sum / sum_weight;
+  }
+}
+
 __global__
 void ComputeNormalMapKernel(float4 *normal, float *depth,
                             uint width, uint height,
@@ -85,10 +159,14 @@ void ComputeNormalMapKernel(float4 *normal, float *depth,
   const int ux = blockIdx.x * blockDim.x + threadIdx.x;
   const int uy = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if (ux < 1 or uy < 1 or ux + 1 >= width or uy + 1 >= height)
-    return;
-
   const size_t idx = GetArrayIndex(ux, uy, width);
+
+  if (ux < 1 or uy < 1 or ux + 1 >= width or uy + 1 >= height)
+  {
+    if (ux == 1 or uy == 1 or ux + 1 == width or uy + 1 == height)
+      normal[idx] = make_float4(0);
+    return;
+  }
 
   float3 normal_ = make_float3(0);
   float3 center = GeometryHelper::ImageReprojectToCamera(ux, uy, depth[idx], fx, fy, cx, cy);
@@ -226,22 +304,39 @@ void ComputeNormalMap(
 //  cv::cuda::GpuMat depth_img_filtered;
 //  cv::cuda::bilateralFilter(depth_img, depth_img_filtered, -1, 5, 5, cv::BORDER_DEFAULT);
 
+  float4 *normals_tmp;
+  checkCudaErrors(cudaMalloc(&normals_tmp, sizeof(float4) * width * height));
   ComputeNormalMapKernel << < grid_size, block_size >> > (
-      normal_data,
+      normals_tmp,
 //          reinterpret_cast<float *>(depth_img_filtered.data),
           depth_data,
           width,
           height,
           params.fx, params.fy, params.cx, params.cy
   );
+  checkCudaErrors(cudaDeviceSynchronize());
+  checkCudaErrors(cudaGetLastError());
+
+  BilateralFilterKernel << < grid_size, block_size >> > (
+      normals_tmp,
+          normal_data,
+          2,
+          2,
+          width,
+          height
+  );
+  checkCudaErrors(cudaDeviceSynchronize());
+  checkCudaErrors(cudaGetLastError());
+
+  checkCudaErrors(cudaFree(normals_tmp));
 
   // Filter normal data AFTER normal estimation
-  cv::cuda::GpuMat normal_map(height, width, CV_32FC4, normal_data);
-  cv::cuda::GpuMat normal_map_filtered;
-  cv::cuda::bilateralFilter(normal_map, normal_map_filtered, -1, 5, 5, cv::BORDER_DEFAULT);
-  checkCudaErrors(cudaMemcpy(normal_data, normal_map_filtered.data,
-                             sizeof(float4) * height * width,
-                             cudaMemcpyDeviceToDevice));
+//  cv::cuda::GpuMat normal_map(height, width, CV_32FC4, normal_data);
+//  cv::cuda::GpuMat normal_map_filtered;
+//  cv::cuda::bilateralFilter(normal_map, normal_map_filtered, -1, 5, 5, cv::BORDER_DEFAULT);
+//  checkCudaErrors(cudaMemcpy(normal_data, normal_map_filtered.data,
+//                             sizeof(float4) * height * width,
+//                             cudaMemcpyDeviceToDevice));
 
   NormalizeNormalsKernel << < grid_size, block_size >> > (normal_data, width);
 }
