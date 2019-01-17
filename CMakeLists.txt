@@ -12,7 +12,10 @@ SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -Wall")
 #----------
 # CUDA compilation settings
 set(CUDA_SEPARABLE_COMPILATION ON) # enable splitting code in .h and .cu files (otherwise linking issues)
-LIST(APPEND CUDA_NVCC_FLAGS -gencode=arch=compute_50,code=sm_50)
+LIST(APPEND CUDA_NVCC_FLAGS
+  -gencode=arch=compute_50,code=sm_50
+  -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored # suppress __host__/__device__ annotation warnings
+  )
 
 #----------
 # Project variable configurations
