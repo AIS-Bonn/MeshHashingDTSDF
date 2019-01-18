@@ -183,6 +183,7 @@ LoggingEngine::WriteFormattedBlocks(const BlockMap &blocks, std::string filename
     block_node["pos"]["x"] = block.first.x;
     block_node["pos"]["y"] = block.first.y;
     block_node["pos"]["z"] = block.first.z;
+    block_node["ptr"] = block.second.voxel_array_ptrs[0];
 
     for (auto voxel_array : block.second.voxel_arrays)
     {
