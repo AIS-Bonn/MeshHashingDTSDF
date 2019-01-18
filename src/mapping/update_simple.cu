@@ -134,7 +134,6 @@ void UpdateBlocksSimpleKernel(
   uint local_idx = threadIdx.x;  //inside of an SDF block
   int3 voxel_pos = voxel_base_pos + make_int3(geometry_helper.DevectorizeIndex(local_idx));
 
-//  Voxel &this_voxel = blocks[entry.ptr].voxel_array[voxel_array_idx]->voxels[local_idx];
   Voxel &this_voxel = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[local_idx];
   /// 2. Project to camera
   float3 world_pos = geometry_helper.VoxelToWorld(voxel_pos);
@@ -297,6 +296,12 @@ void UpdateBlocksSimpleKernelDirectional(
     delta.sdf = sdf;
     delta.inv_sigma2 = inv_sigma2 * weights[direction]; // additionally weight by normal-direction-compliance
 
+    if (voxel_pos.x == 9 and voxel_pos.y == 0 and voxel_pos.z == 0
+        and direction == static_cast<size_t>(TSDFDirection::LEFT))
+    {
+      printf("%i %i -> %f\n", image_pos.x, image_pos.y, sdf);
+    }
+
     if (sensor_data.color_data)
     {
       float4 color = tex2D<float4>(sensor_data.color_texture, image_pos.x, image_pos.y);
@@ -308,21 +313,21 @@ void UpdateBlocksSimpleKernelDirectional(
     voxel.Update(delta);
   }
 #else
-    TSDFDirection direction = VectorToTSDFDirection(normal_world);
-    Voxel &voxel = blocks.GetVoxelArray(entry.ptr, static_cast<size_t>(direction)).voxels[local_idx];
-    Voxel delta;
-    delta.sdf = sdf;
-    delta.inv_sigma2 = inv_sigma2;
+  TSDFDirection direction = VectorToTSDFDirection(normal_world);
+  Voxel &voxel = blocks.GetVoxelArray(entry.ptr, static_cast<size_t>(direction)).voxels[local_idx];
+  Voxel delta;
+  delta.sdf = sdf;
+  delta.inv_sigma2 = inv_sigma2;
 
-    if (sensor_data.color_data)
-    {
-      float4 color = tex2D<float4>(sensor_data.color_texture, image_pos.x, image_pos.y);
-      delta.color = make_uchar3(255 * color.x, 255 * color.y, 255 * color.z);
-    } else
-    {
-      delta.color = make_uchar3(0, 255, 0);
-    }
-    voxel.Update(delta);
+  if (sensor_data.color_data)
+  {
+    float4 color = tex2D<float4>(sensor_data.color_texture, image_pos.x, image_pos.y);
+    delta.color = make_uchar3(255 * color.x, 255 * color.y, 255 * color.z);
+  } else
+  {
+    delta.color = make_uchar3(0, 255, 0);
+  }
+  voxel.Update(delta);
 #endif // MULTI_DIRECTIONAL_FUSION
 }
 

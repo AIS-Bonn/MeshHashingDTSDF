@@ -505,6 +505,186 @@ static void VertexExtractionKernel(
   short2 combined_mc_indices = ComputeCombinedMCIndices(mc_indices);
   this_mesh_unit.mc_idx[0] = combined_mc_indices.x;
   this_mesh_unit.mc_idx[1] = combined_mc_indices.y;
+
+//  if ((voxel_pos.x >= 8 and voxel_pos.x <= 10) and
+//      (voxel_pos.y >= -1 and voxel_pos.y <= 0) and
+//      (voxel_pos.z >= -10 and voxel_pos.z <= -10))
+//  {
+//    printf("(%i, %i, %i) %i %i [%i, %i, %i, %i, %i, %i] -> [%i, %i, %i, %i, %i, %i]\n",
+//           voxel_pos.x, voxel_pos.y, voxel_pos.z,
+//           this_mesh_unit.mc_idx[0], this_mesh_unit.mc_idx[1],
+//           mc_indices_[0], mc_indices_[1], mc_indices_[2], mc_indices_[3], mc_indices_[4], mc_indices_[5],
+//           mc_indices[0], mc_indices[1], mc_indices[2], mc_indices[3], mc_indices[4], mc_indices[5]);
+//  }
+}
+
+
+/**
+ * Finds the mesh unit at the given voxel position, even across block borders.
+ * @param blocks
+ * @param hash_table
+ * @param geometry_helper
+ * @param voxel_pos
+ * @return
+ */
+__device__
+MeshUnit *GetMeshUnitRelative(
+    BlockArray blocks,
+    HashTable hash_table,
+    GeometryHelper geometry_helper,
+    int3 voxel_pos
+)
+{
+  int3 block_pos = geometry_helper.VoxelToBlock(voxel_pos);
+  HashEntry entry = hash_table.GetEntry(block_pos);
+  if (entry.ptr == FREE_ENTRY)
+    return nullptr;
+  Block &block = blocks[entry.ptr];
+  uint3 voxel_pos_relative = make_uint3(voxel_pos - geometry_helper.BlockToVoxel(block_pos));
+  return &block.mesh_units[geometry_helper.VectorizeOffset(voxel_pos_relative)];
+}
+
+/**
+ * Applies equalization to a voxels marching cubes index with respect to neighboring voxels
+ * @param candidate_entries
+ * @param blocks
+ * @param hash_table
+ * @param geometry_helper
+ */
+__global__
+static void MCIndexEqualizationKernel(
+    EntryArray candidate_entries,
+    BlockArray blocks,
+    HashTable hash_table,
+    GeometryHelper geometry_helper
+)
+{
+  const HashEntry &entry = candidate_entries[blockIdx.x];
+  Block &block = blocks[entry.ptr];
+
+  int3 voxel_base_pos = geometry_helper.BlockToVoxel(entry.pos);
+  uint3 offset = geometry_helper.DevectorizeIndex(threadIdx.x);
+  int3 voxel_pos = voxel_base_pos + make_int3(offset);
+
+  MeshUnit &this_mesh_unit = block.mesh_units[threadIdx.x];
+  if (this_mesh_unit.mc_idx[0] <= 0 or this_mesh_unit.mc_idx[0] == 255)
+  {
+    return;
+  }
+
+  const static size_t neighbors = 26;
+  const static int3 offsets[neighbors] = {
+      {-1, -1, -1},
+      {-1, -1, 0},
+      {-1, -1, 1},
+      {-1, 0,  -1},
+      {-1, 0,  0},
+      {-1, 0,  1},
+      {-1, 1,  -1},
+      {-1, 1,  0},
+      {-1, 1,  1},
+      {0,  -1, -1},
+      {0,  -1, 0},
+      {0,  -1, 1},
+      {0,  0,  -1},
+      {0,  0,  1},
+      {0,  1,  -1},
+      {0,  1,  0},
+      {0,  1,  1},
+      {1,  -1, -1},
+      {1,  -1, 0},
+      {1,  -1, 1},
+      {1,  0,  -1},
+      {1,  0,  0},
+      {1,  0,  1},
+      {1,  1,  -1},
+      {1,  1,  0},
+      {1,  1,  1},
+//      {-1, 0,  0},
+//      {1,  0,  0},
+//      {0,  -1, 0},
+//      {0,  1,  0},
+//      {0,  0,  -1},
+//      {0,  0,  1},
+  };
+  MeshUnit *neighbor_mesh_units[neighbors];
+  for (size_t i = 0; i < neighbors; i++)
+  {
+    neighbor_mesh_units[i] = GetMeshUnitRelative(blocks, hash_table, geometry_helper,
+                                                 voxel_pos + offsets[i]);
+
+  }
+
+  // for every corner: 3 pairs of (neighbor, corner), that are coincident to this corner
+  const static int2 corner_to_neighbor_corners[8][7] = {
+      {{4,  1}, {5,  2}, {7,  5}, {8,  6}, {13, 3}, {15, 4}, {16, 7}},
+      {{13, 2}, {15, 5}, {16, 6}, {21, 0}, {22, 3}, {24, 4}, {25, 7}},
+      {{12, 1}, {14, 5}, {15, 6}, {20, 0}, {21, 3}, {23, 4}, {24, 7}},
+      {{3,  1}, {4,  2}, {6,  5}, {7,  6}, {12, 0}, {14, 4}, {15, 7}},
+      {{1,  1}, {2,  2}, {4,  5}, {5,  6}, {10, 0}, {11, 3}, {13, 7}},
+      {{10, 1}, {11, 2}, {13, 6}, {18, 0}, {19, 3}, {21, 4}, {22, 7}},
+      {{9,  1}, {10, 2}, {12, 5}, {17, 0}, {18, 3}, {20, 4}, {21, 7}},
+      {{0,  1}, {1,  2}, {3,  5}, {4,  6}, {9,  0}, {10, 3}, {12, 4}},
+//      {{0, 1}, {3, 4}, {5, 3}},
+//      {{1, 0}, {3, 5}, {5, 2}},
+//      {{1, 3}, {3, 6}, {4, 1}},
+//      {{0, 2}, {3, 7}, {4, 0}},
+//      {{0, 5}, {2, 0}, {5, 7}},
+//      {{1, 4}, {2, 1}, {5, 6}},
+//      {{1, 7}, {2, 2}, {4, 5}},
+//      {{0, 6}, {2, 3}, {4, 4}}
+  };
+
+  short before = this_mesh_unit.mc_idx[0];
+
+//  for (size_t c = 0; c < 8; c++)
+//  {
+//    int this_corner_value = (this_mesh_unit.mc_idx[0] & (1 << c)) > 0;
+//    for (size_t neighbor = 0; neighbor < 7; neighbor++)
+//    {
+//      int2 p = corner_to_neighbor_corners[c][neighbor];
+//      int neighbor_idx = p.x;
+//      int neighbor_corner_idx = p.y;
+//      if (not neighbor_mesh_units[neighbor_idx])
+//        continue;
+//      if (neighbor_mesh_units[neighbor_idx]->mc_idx[0] <= 0)
+//        continue;
+//      int corner_value = (neighbor_mesh_units[neighbor_idx]->mc_idx[0] & (1 << neighbor_corner_idx)) > 0;
+//      this_mesh_unit.mc_idx[0] &= (0xff ^ (1 << c)) | (corner_value << c);
+//    }
+//  }
+
+
+  for (size_t c = 0; c < 8; c++)
+  {
+    int this_corner_value = (this_mesh_unit.mc_idx[0] & (1 << c)) > 0;
+    int votes = 1;
+    for (size_t neighbor = 0; neighbor < 7; neighbor++)
+    {
+      int2 p = corner_to_neighbor_corners[c][neighbor];
+      int neighbor_idx = p.x;
+      int neighbor_corner_idx = p.y;
+      if (not neighbor_mesh_units[neighbor_idx])
+        continue;
+      if (neighbor_mesh_units[neighbor_idx]->mc_idx[0] <= 0)
+        continue;
+      int corner_value = (neighbor_mesh_units[neighbor_idx]->mc_idx[0] & (1 << neighbor_corner_idx)) > 0;
+      this_corner_value += corner_value;
+      votes++;
+    }
+    // TODO: check compatibility before combining
+    if (this_corner_value > votes / 2)
+    {
+      this_mesh_unit.mc_idx[0] |= (1 << c);
+    } else
+    {
+      this_mesh_unit.mc_idx[0] &= 0xff ^ (1 << c);
+    }
+  }
+//  if (before != this_mesh_unit.mc_idx[0])
+//  {
+//    printf("[%i, %i, %i] %i -> %i\n", voxel_pos.x, voxel_pos.y, voxel_pos.z, before, this_mesh_unit.mc_idx[0]);
+//  }
 }
 
 __device__
@@ -751,6 +931,17 @@ float MarchingCubesDirectional(
   checkCudaErrors(cudaGetLastError());
   double pass1_seconds = timer.Tock();
   LOG(INFO) << "Pass1 duration: " << pass1_seconds;
+
+  timer.Tick();
+  MCIndexEqualizationKernel << < grid_size, block_size >> > (
+      candidate_entries,
+          blocks,
+          hash_table,
+          geometry_helper);
+  checkCudaErrors(cudaDeviceSynchronize());
+  checkCudaErrors(cudaGetLastError());
+  double pass11_seconds = timer.Tock();
+  LOG(INFO) << "Pass1.1 duration: " << pass11_seconds;
 
   timer.Tick();
   TriangleExtractionKernel << < grid_size, block_size >> > (
