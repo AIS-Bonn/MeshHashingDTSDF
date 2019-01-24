@@ -22,5 +22,6 @@ float MarchingCubes(
     Mesh& mesh,
     HashTable& hash_table,
     GeometryHelper& geometry_helper,
-    bool enable_sdf_gradient);
+    bool enable_sdf_gradient,
+    bool enable_mc_direction_filtering);
 #endif //MESH_HASHING_MARCHING_CUBES_H

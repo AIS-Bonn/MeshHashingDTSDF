@@ -127,6 +127,7 @@ CUDA_ADD_LIBRARY(mesh-hashing-cuda
   ${VH}/core/block_array.cu
   ${VH}/core/mesh.cu
   ${VH}/core/collect_block_array.cu
+  ${VH}/core/directional_tsdf.cu
 
   ${VH}/sensor/rgbd_sensor.cu
   ${VH}/sensor/preprocess.cu

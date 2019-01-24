@@ -1,4 +1,6 @@
 #include <device_launch_parameters.h>
+#include "core/directional_tsdf.h"
+#include "core/functions.h"
 #include "meshing/marching_cubes.h"
 #include "geometry/spatial_query.h"
 #include "visualization/color_util.h"
@@ -11,21 +13,6 @@
 ////////////////////
 /// Device code
 ////////////////////
-
-/// Marching Cubes
-__device__
-static float3 VertexIntersection(const float3 &p1, const float3 p2,
-                          const float &v1, const float &v2,
-                          const float &isolevel) {
-  if (fabs(v1 - isolevel) < 0.008) return p1;
-  if (fabs(v2 - isolevel) < 0.008) return p2;
-  float mu = (isolevel - v1) / (v2 - v1);
-
-  float3 p = make_float3(p1.x + mu * (p2.x - p1.x),
-                         p1.y + mu * (p2.y - p1.y),
-                         p1.z + mu * (p2.z - p1.z));
-  return p;
-}
 
 __device__
 static inline int AllocateVertexWithMutex(
@@ -65,8 +52,9 @@ static inline int AllocateVertexWithMutex(
 
     float rho = voxel_query.a/(voxel_query.a + voxel_query.b);
     //printf("%f %f\n", voxel_query.a, voxel_query.b);
-    mesh.vertex(ptr).color = ValToRGB(rho, 0.4f, 1.0f);
+//    mesh.vertex(ptr).color = ValToRGB(rho, 0.4f, 1.0f);
     //mesh.vertex(ptr).color = ValToRGB(voxel_query.inv_sigma2/10000.0f, 0, 1.0f);
+    mesh.vertex(ptr).color = make_float3(0.5f);
   }
   return ptr;
 }
@@ -79,7 +67,8 @@ static void VertexExtractionKernel(
     Mesh mesh,
     HashTable hash_table,
     GeometryHelper geometry_helper,
-    bool enable_sdf_gradient
+    bool enable_sdf_gradient,
+    bool enable_mc_direction_filtering
 ) {
   const HashEntry &entry = candidate_entries[blockIdx.x];
   Block& block = blocks[entry.ptr];
@@ -135,6 +124,15 @@ static void VertexExtractionKernel(
   }
 
   this_mesh_unit.mc_idx[0] = cube_index;
+
+  if (enable_mc_direction_filtering)
+  {
+    if (this_mesh_unit.mc_idx[0] != FilterMCIndexDirection(this_mesh_unit.mc_idx[0],
+                                        static_cast<TSDFDirection>(voxel_array_idx),
+                                        d))
+      this_mesh_unit.mc_idx[0] = 0;
+  }
+
   if (cube_index == 0 || cube_index == 255) return;
 
   const int kEdgeCount = 12;
@@ -333,7 +331,8 @@ float MarchingCubes(
     Mesh &mesh,
     HashTable &hash_table,
     GeometryHelper &geometry_helper,
-    bool enable_sdf_gradient
+    bool enable_sdf_gradient,
+    bool enable_mc_direction_filtering
 ) {
   uint occupied_block_count = candidate_entries.count();
   LOG(INFO) << "Marching cubes block count: " << occupied_block_count;
@@ -354,7 +353,8 @@ float MarchingCubes(
           mesh,
           hash_table,
           geometry_helper,
-          enable_sdf_gradient);
+          enable_sdf_gradient,
+          enable_mc_direction_filtering);
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());
   double pass1_seconds = timer.Tock();

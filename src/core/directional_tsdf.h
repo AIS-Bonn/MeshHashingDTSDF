@@ -94,3 +94,17 @@ inline TSDFDirection VectorToTSDFDirection(const float4 &vector)
     return TSDFDirection(max_direction);
   return TSDFDirection::FORWARD;
 }
+
+__device__
+short FilterMCIndexDirection(const short mc_index, const TSDFDirection direction, const float sdf[8]);
+
+/**
+ * Check, whether the given MC index is compatible to the direction.
+ *
+ * @param mc_index MC index
+ * @param direction Direction
+ * @param sdf SDF values of voxel corners
+ * @return
+ */
+__device__
+bool IsMCIndexDirectionCompatible(const short mc_index, const TSDFDirection direction, const float sdf[8]);

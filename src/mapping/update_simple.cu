@@ -136,10 +136,10 @@ void UpdateBlocksSimpleKernel(
 
   Voxel &this_voxel = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[local_idx];
   /// 2. Project to camera
-  float3 world_pos = geometry_helper.VoxelToWorld(voxel_pos);
-  float3 camera_pos = cTw * world_pos;
+  float3 voxel_world_pos = geometry_helper.VoxelToWorld(voxel_pos);
+  float3 voxel_camera_pos = cTw * voxel_world_pos;
   uint2 image_pos = make_uint2(
-      geometry_helper.CameraProjectToImagei(camera_pos,
+      geometry_helper.CameraProjectToImagei(voxel_camera_pos,
                                             sensor_params.fx, sensor_params.fy,
                                             sensor_params.cx, sensor_params.cy));
   if (image_pos.x >= sensor_params.width
@@ -165,7 +165,7 @@ void UpdateBlocksSimpleKernel(
     sdf = dot(surface_point - camera_pos, -normal);
   } else
   { // Use point-to-point metric
-    sdf = depth - camera_pos.z;
+    sdf = depth - voxel_camera_pos.z;
   }
   float normalized_depth = geometry_helper.NormalizeDepth(
       depth,

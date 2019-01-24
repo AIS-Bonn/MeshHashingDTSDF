@@ -30,7 +30,7 @@ public:
   void ConfigVideoWriter(int width, int height);
   void ConfigPlyWriter();
   void WriteVideo(cv::Mat& mat);
-  void WritePly(CompactMesh& mesh);
+  void WritePly(CompactMesh& mesh, const std::string& filename="mesh.ply");
   void WriteLocalizationError(float error);
   void WriteMappingTimeStamp(double alloc_time, double collect_time, double update_time,
                                int frame_idx);

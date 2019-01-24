@@ -62,9 +62,9 @@ void LoggingEngine::ConfigPlyWriter()
   enable_ply_ = true;
 }
 
-void LoggingEngine::WritePly(CompactMesh &mesh)
+void LoggingEngine::WritePly(CompactMesh &mesh, const std::string& filename)
 {
-  SavePly(mesh, base_path_ + "/mesh.ply");
+  SavePly(mesh, base_path_ + "/" + filename);
 }
 
 void LoggingEngine::WriteLocalizationError(float error)

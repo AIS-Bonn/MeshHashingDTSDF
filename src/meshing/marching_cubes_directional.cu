@@ -3,6 +3,7 @@
 #include "geometry/spatial_query.h"
 #include "visualization/color_util.h"
 #include "core/directional_tsdf.h"
+#include "core/functions.h"
 
 ////////////////////
 /// class MappingEngine - meshing
@@ -11,45 +12,6 @@
 ////////////////////
 /// Device code
 ////////////////////
-
-/**
- * Interpolate the surface offset between two voxel vertices given their SDF values.
- * The offset denotes the distance from v1 to the iso surface in [0, 1] (-> voxel side length)
- * @param v1 SDF value of corner 1
- * @param v2 SDF value of corner 2
- * @param isolevel Surface iso level
- * @return Vertex offset between two voxel vertices
- */
-__device__
-static inline float InterpolateSurfaceOffset(const float &v1, const float &v2,
-                                             const float &isolevel)
-{
-  if (fabs(v1 - isolevel) < 0.008) return 0;
-  if (fabs(v2 - isolevel) < 0.008) return 1;
-  return (isolevel - v1) / (v2 - v1);
-}
-
-/**
- * Interpolate vertex position on voxel edge for the given SDF values.
- * @param p1 Voxel corner 1
- * @param p2 Voxel corner 2
- * @param v1 SDF value of corner 1
- * @param v2 SDF value of corner 2
- * @param isolevel Surface iso level
- * @return Vertex position on voxel edge
- */
-__device__
-static float3 VertexIntersection(const float3 &p1, const float3 p2,
-                                 const float &v1, const float &v2,
-                                 const float &isolevel)
-{
-  float mu = InterpolateSurfaceOffset(v1, v2, isolevel);
-
-  float3 p = make_float3(p1.x + mu * (p2.x - p1.x),
-                         p1.y + mu * (p2.y - p1.y),
-                         p1.z + mu * (p2.z - p1.z));
-  return p;
-}
 
 __device__
 static inline int AllocateVertexWithMutex(
@@ -103,93 +65,6 @@ static inline int AllocateVertexWithMutex(
   return ptr;
 }
 
-/**
- * Check, whether the given MC index is compatible to the direction.
- *
- * @param mc_index MC index
- * @param direction Direction
- * @param sdf SDF values of voxel corners
- * @return
- */
-__device__
-static bool IsMCIndexDirectionCompatible(const short mc_index, const TSDFDirection direction, const float sdf[8])
-{
-  // Table containing for each direction:
-  // 4 opposite edge pairs, each of which is checked individually.
-  const static size_t view_direction_edges_to_check[6][8] = {
-      {0, 4, 1, 5, 2,  6,  3,  7},
-      {4, 0, 5, 1, 6,  2,  7,  3},
-      {1, 3, 5, 7, 9,  8,  10, 11},
-      {3, 1, 7, 5, 8,  9,  11, 10},
-      {2, 0, 6, 4, 10, 9,  11, 8},
-      {0, 2, 4, 6, 8,  11, 9,  10}
-  };
-  if (kIndexDirectionCompatibility[mc_index][static_cast<size_t>(direction)] == 0)
-    return false;
-  if (kIndexDirectionCompatibility[mc_index][static_cast<size_t>(direction)] == 2)
-  {
-    for (int e = 0; e < 4; e++)
-    {
-      const size_t edge_idx = view_direction_edges_to_check[static_cast<size_t>(direction)][2 * e];
-      const size_t opposite_edge_idx = view_direction_edges_to_check[static_cast<size_t>(direction)][2 * e + 1];
-      int2 edge = kEdgeEndpointVertices[edge_idx];
-      int2 opposite_edge = kEdgeEndpointVertices[opposite_edge_idx];
-
-      int2 endpoint_values;
-      endpoint_values.x = (mc_index & (1 << edge.x)) > 0;
-      endpoint_values.y = (mc_index & (1 << edge.y)) > 0;
-
-      // If edge has NO zero-crossing -> continue
-      if (endpoint_values.x + endpoint_values.y != 1)
-        continue;
-
-      // Swap vertex indices, s.t. first endpoint is behind the surface
-      if (endpoint_values.y == 1)
-      {
-        int tmp;
-        tmp = edge.x;
-        edge.x = edge.y;
-        edge.y = tmp;
-        tmp = opposite_edge.x;
-        opposite_edge.x = opposite_edge.y;
-        opposite_edge.y = tmp;
-      }
-
-      float offset = InterpolateSurfaceOffset(sdf[edge.x], sdf[edge.y], 0);
-      float opposite_offset = InterpolateSurfaceOffset(sdf[opposite_edge.x], sdf[opposite_edge.y], 0);
-
-      // If interpolated surface more than 90 degrees from view direction vector -> discard
-      if (offset > opposite_offset)
-      {
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
-
-__device__
-static short FilterMCIndexDirection(const short mc_index, const TSDFDirection direction, const float sdf[8])
-{
-  if (mc_index <= 0 or mc_index == 255)
-    return mc_index;
-
-  short new_index = 0;
-  for (int component = 0; component < 4 and kIndexDecomposition[mc_index][component] != -1; component++)
-  {
-    const short part_idx = kIndexDecomposition[mc_index][component];
-    if (not IsMCIndexDirectionCompatible(part_idx, direction, sdf))
-      continue;
-    new_index |= part_idx;
-  }
-
-  if (new_index == 0)
-  { // If 0 after filtering -> invalidate, so it doesn't affect other directions during later filtering process
-    new_index = -1;
-  }
-  return new_index;
-}
 
 /** Checks if the specified edge of two marching cubes indices is compatible
  * (if zero-crossing -> same direction?)
@@ -312,11 +187,11 @@ static bool GetVoxelSDFValues(const HashEntry &entry, BlockArray &blocks,
 
     sdf_array[i] = voxel_query.sdf;
 
-    if (fabs(sdf_array[i]) > kThreshold)
-    { // too far away from surface
-      mc_index = -1;
-      return false;
-    }
+//    if (fabs(sdf_array[i]) > kThreshold)
+//    { // too far away from surface
+//      mc_index = -1;
+//      return false;
+//    }
 
     float rho = voxel_query.a / (voxel_query.a + voxel_query.b);
     if (rho < 0.1f or voxel_query.inv_sigma2 < squaref(1.0f / kVoxelSize) / 4)
@@ -390,7 +265,7 @@ static void VertexExtractionKernel(
       continue;
 
     int support = 0;
-    for (int i = 0; i < 6; i++)
+    for (int i = 0; i < N_DIRECTIONS; i++)
     {
       // Only use directions, which are potentially compatible for exclusion
       if (kIndexDirectionCompatibility[mc_index][i] == 0)

@@ -196,18 +196,11 @@ void MainEngine::Meshing()
   if (runtime_params_.enable_directional_sdf)
   {
     time = MarchingCubesDirectional(candidate_entries_,
-                         blocks_,
-                         mesh_,
-                         hash_table_,
-                         geometry_helper_,
-                         enable_sdf_gradient_);
-//    time = MarchingCubes(candidate_entries_,
-//                         blocks_,
-//                         static_cast<size_t>(TSDFDirection::FORWARD),
-//                         mesh_,
-//                         hash_table_,
-//                         geometry_helper_,
-//                         enable_sdf_gradient_);
+                                    blocks_,
+                                    mesh_,
+                                    hash_table_,
+                                    geometry_helper_,
+                                    enable_sdf_gradient_);
   } else
   {
     time = MarchingCubes(candidate_entries_,
@@ -216,7 +209,8 @@ void MainEngine::Meshing()
                          mesh_,
                          hash_table_,
                          geometry_helper_,
-                         enable_sdf_gradient_);
+                         enable_sdf_gradient_,
+                         false);
   }
   log_engine_.WriteMeshingTimeStamp(time, integrated_frame_count_);
 }
@@ -379,6 +373,29 @@ void MainEngine::FinalLog()
   if (log_engine_.enable_ply())
   {
     log_engine_.WritePly(vis_engine_.compact_mesh());
+  }
+  if (runtime_params_.enable_directional_sdf)
+  {
+    for (size_t direction = 0; direction < N_DIRECTIONS; direction++)
+    {
+      LOG(INFO) << "Meshing direction: " << TSDFDirectionToString(TSDFDirection(direction));
+      MarchingCubes(candidate_entries_,
+                    blocks_,
+                    direction,
+                    mesh_,
+                    hash_table_,
+                    geometry_helper_,
+                    enable_sdf_gradient_,
+                    true);
+      CompressMesh(candidate_entries_,
+                   blocks_,
+                   mesh_,
+                   vis_engine_.compact_mesh(), timing);
+      std::stringstream ss;
+      ss << "mesh_dir_" << TSDFDirectionToString(TSDFDirection(direction)) << ".ply";
+      log_engine_.WritePly(vis_engine_.compact_mesh(), ss.str());
+
+    }
   }
   log_engine_.WriteMeshStats(vis_engine_.compact_mesh().vertex_count(),
                              vis_engine_.compact_mesh().triangle_count());
