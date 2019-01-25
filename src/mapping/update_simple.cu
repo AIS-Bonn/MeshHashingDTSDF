@@ -162,7 +162,7 @@ void UpdateBlocksSimpleKernel(
     float3 surface_point = GeometryHelper::ImageReprojectToCamera(image_pos.x, image_pos.y, depth,
                                                                   sensor_params.fx, sensor_params.fy,
                                                                   sensor_params.cx, sensor_params.cy);
-    sdf = dot(surface_point - camera_pos, -normal);
+    sdf = dot(surface_point - voxel_camera_pos, -normal);
   } else
   { // Use point-to-point metric
     sdf = depth - voxel_camera_pos.z;
@@ -175,7 +175,7 @@ void UpdateBlocksSimpleKernel(
   float inv_sigma2 = fmaxf(10 * geometry_helper.weight_sample * (1.0f - normalized_depth),
                            1.0f);
   float truncation = geometry_helper.truncate_distance(depth);
-  if (sdf <= -truncation)
+  if (depth - voxel_camera_pos.z <= -truncation)
     return;
   if (sdf >= 0.0f)
   {
@@ -266,7 +266,7 @@ void UpdateBlocksSimpleKernelDirectional(
   float inv_sigma2 = fmaxf(10 * geometry_helper.weight_sample * (1.0f - normalized_depth),
                            1.0f);
   float truncation = geometry_helper.truncate_distance(depth);
-  if (sdf <= -truncation)
+  if (depth - camera_pos.z <= -truncation)
     return;
   if (sdf >= 0.0f)
   {
