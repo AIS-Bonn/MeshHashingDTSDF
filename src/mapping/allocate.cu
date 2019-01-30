@@ -2,6 +2,7 @@
 // Created by wei on 17-10-22.
 //
 
+#include "core/directional_tsdf.h"
 #include "core/functions.h"
 #include "mapping/allocate.h"
 #include "util/timer.h"
@@ -122,4 +123,87 @@ double AllocBlockArray(
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());
   return timer.Tock();
+}
+
+__global__
+void AllocateVoxelArrayKernel(
+    EntryArray candidate_entries,
+    uint num_entries,
+    BlockArray blocks
+)
+{
+  size_t idx = (blockIdx.x * blockDim.x) + threadIdx.x;
+  if (idx >= num_entries)
+  {
+    return;
+  }
+  const HashEntry &entry = candidate_entries[idx];
+
+  blocks.AllocateVoxelArrayWithMutex(entry.ptr, 0);
+}
+
+__global__
+void AllocateVoxelArrayKernelDirectional(
+    EntryArray candidate_entries,
+    uint num_entries,
+    BlockArray blocks,
+    SensorData sensor_data,
+    SensorParams sensor_params,
+    float4x4 cTw,
+    float4x4 wTc,
+    GeometryHelper geometry_helper
+)
+{
+  size_t idx = (blockIdx.x * blockDim.x) + threadIdx.x;
+  if (idx >= num_entries)
+  {
+    return;
+  }
+  const HashEntry &entry = candidate_entries[idx];
+
+  int3 voxel_base_pos = geometry_helper.BlockToVoxel(entry.pos);
+
+  int allocate_directions[6] = {0};
+  // For each voxel check which direction normal is pointing -> allocate VoxelArrays accordingly
+  for (uint voxel_idx = 0; voxel_idx < BLOCK_SIZE; voxel_idx++)
+  {
+    int3 voxel_pos = voxel_base_pos + make_int3(geometry_helper.DevectorizeIndex(voxel_idx));
+    float3 world_pos = geometry_helper.VoxelToWorld(voxel_pos);
+    float3 camera_pos = cTw * world_pos;
+    uint2 image_pos = make_uint2(
+        geometry_helper.CameraProjectToImagei(camera_pos,
+                                              sensor_params.fx, sensor_params.fy,
+                                              sensor_params.cx, sensor_params.cy));
+    if (image_pos.x >= sensor_params.width or image_pos.y >= sensor_params.height)
+      continue;
+
+    float4 normal = tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y);
+    if (not IsValidNormal(normal))
+    { // No normal value for this coordinate (NaN or only 0s)
+      continue;
+    }
+    normal.w = 1;
+
+    float4x4 wTcRotOnly = wTc;
+    wTcRotOnly.m14 = 0;
+    wTcRotOnly.m24 = 0;
+    wTcRotOnly.m34 = 0;
+    float4 normal_world = wTcRotOnly * normal;
+
+    float weights[N_DIRECTIONS];
+    ComputeDirectionWeights(normal_world, weights);
+
+    for (size_t direction = 0; direction < N_DIRECTIONS; direction++)
+    {
+      allocate_directions[direction] |= (weights[direction] >= direction_weight_threshold);
+    }
+  }
+
+  for (uint i = 0; i < 6; i++)
+  {
+    if (allocate_directions[i])
+    {
+      blocks.AllocateVoxelArrayWithMutex(entry.ptr, i);
+    }
+  }
 }

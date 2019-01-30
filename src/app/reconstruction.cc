@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
   );
 
   main_engine.ConfigMappingEngine(
-      args.enable_bayesian_update
+      false
   );
 
   gl::Light light;

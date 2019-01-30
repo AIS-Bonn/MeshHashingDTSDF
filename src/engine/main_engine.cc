@@ -11,6 +11,7 @@
 #include "localizing/point_to_psdf.h"
 #include "mapping/allocate.h"
 #include "mapping/update_simple.h"
+#include "mapping/update_raycasting.h"
 #include "mapping/recycle.h"
 #include "meshing/marching_cubes.h"
 #include "meshing/marching_cubes_directional.h"
@@ -132,9 +133,8 @@ void MainEngine::Mapping(Sensor &sensor)
   size_t voxel_array_idx = 0;
 
   double update_time = 0;
-  if (!map_engine_.enable_bayesian_update())
+  if (runtime_params_.update_type == 0)
   {
-    LOG(INFO) << "Simple update";
     if (runtime_params_.enable_directional_sdf)
     {
       update_time = UpdateBlocksSimpleDirectional(candidate_entries_,
@@ -153,36 +153,27 @@ void MainEngine::Mapping(Sensor &sensor)
                                        hash_table_,
                                        geometry_helper_);
     }
+    LOG(INFO) << "Simple update: " << update_time;
+
     log_engine_.WriteMappingTimeStamp(
         alloc_time,
         collect_time,
         update_time,
         integrated_frame_count_);
-  } else
+  } else if (runtime_params_.update_type == 1)
   {
-    LOG(INFO) << "Bayesian update";
-    float predict_seconds = PredictOutlierRatio(
-        candidate_entries_,
-        blocks_,
-        voxel_array_idx,
-        mesh_,
-        sensor,
-        hash_table_,
-        geometry_helper_
-    );
-    update_time = UpdateBlocksBayesian(
-        candidate_entries_,
-        blocks_,
-        voxel_array_idx,
-        sensor,
-        hash_table_,
-        geometry_helper_
-    );
+    update_time = UpdateRaycasting(candidate_entries_,
+                                   blocks_,
+                                   voxel_array_idx,
+                                   sensor,
+                                   runtime_params_,
+                                   hash_table_,
+                                   geometry_helper_);
 
+    LOG(INFO) << "Ray casting update: " << update_time;
     log_engine_.WriteMappingTimeStamp(
         alloc_time,
         collect_time,
-        predict_seconds,
         update_time,
         integrated_frame_count_);
   }

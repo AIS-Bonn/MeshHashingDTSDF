@@ -136,6 +136,7 @@ CUDA_ADD_LIBRARY(mesh-hashing-cuda
   ${VH}/mapping/allocate.cu
   ${VH}/mapping/update_simple.cu
   ${VH}/mapping/update_bayesian.cu
+  ${VH}/mapping/update_raycasting.cu
   ${VH}/mapping/recycle.cu
 
   ${VH}/optimize/linear_equations.cu
@@ -209,6 +210,8 @@ TARGET_LINK_LIBRARIES(block_analysis
   mesh-hashing
   ${OpenCV_LIBRARIES}
   ${GLOG_LIBRARIES})
+
+add_subdirectory(test)
 
 ### An ORB app
 #OPTION(WITH_ORBSLAM2 "Build with orb slam" ON)

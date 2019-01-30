@@ -37,6 +37,7 @@ typedef signed char schar;
 #include <cuda_runtime.h>
 #endif
 
+#define __int_as_float(n) float(int(n))
 #ifndef PINF
 #define PINF  __int_as_float(0x7f800000)
 #endif

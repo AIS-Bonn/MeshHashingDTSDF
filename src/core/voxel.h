@@ -89,6 +89,7 @@ struct __ALIGN__(4) Voxel {
   float  inv_sigma2; // sigma
   float  a, b;
   uchar3 color;  // color
+  unsigned int num_updates;
 
   __host__ __device__
   void operator = (const Voxel& v) {
@@ -104,6 +105,7 @@ struct __ALIGN__(4) Voxel {
     sdf = inv_sigma2 = 0.0f;
     color = make_uchar3(0, 0, 0);
     a = b = 0;
+    num_updates = 0;
   }
 
   __host__ __device__

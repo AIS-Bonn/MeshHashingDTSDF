@@ -115,8 +115,7 @@ static void VertexExtractionKernel(
     d[i] = voxel_query.sdf;
     if (fabs(d[i]) > kThreshold) return;
 
-    float rho = voxel_query.a / (voxel_query.a + voxel_query.b);
-    if (rho < 0.1f || voxel_query.inv_sigma2 < squaref(1.0f / kVoxelSize))
+    if (voxel_query.inv_sigma2 < squaref(1.0f / kVoxelSize))
       return;
 //    if (voxel_query.inv_sigma2 < 50.0f) return;
     if (d[i] < kIsoLevel) cube_index |= (1 << i);

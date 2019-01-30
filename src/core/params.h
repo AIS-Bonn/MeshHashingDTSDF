@@ -76,7 +76,7 @@ struct SensorParams {
 /// Just a supersede of argv editing...
 struct RuntimeParams {
   int  dataset_type;
-  bool enable_bayesian_update;
+  int  update_type;
   bool enable_point_to_plane;
 
   bool enable_directional_sdf;

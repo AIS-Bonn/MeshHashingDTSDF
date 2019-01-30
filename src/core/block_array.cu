@@ -39,6 +39,8 @@ VoxelArray &BlockArray::GetVoxelArray(uint block_idx, size_t voxel_array_idx) co
 __device__
 bool BlockArray::HasVoxelArray(uint block_idx, size_t voxel_array_idx) const
 {
+  if (block_idx == FREE_PTR)
+    return false;
   Block &block = blocks_[block_idx];
   return block.voxel_array_ptrs[voxel_array_idx] != FREE_PTR;
 }

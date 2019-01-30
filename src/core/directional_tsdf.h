@@ -7,6 +7,10 @@
 #include <vector_types.h>
 #include "common.h"
 
+
+__device__
+const static float direction_weight_threshold = 0.3826834323650898f; // approx of sin(pi/8)
+
 enum class TSDFDirection : std::uint8_t
 {
   UP = 0,
@@ -46,6 +50,7 @@ inline const char *TSDFDirectionToString(const TSDFDirection direction)
     case TSDFDirection::BACKWARD:
       return "BACKWARD";
   }
+  return "UNKNOWN";
 }
 
 /**
@@ -60,8 +65,8 @@ __host__ __device__
 inline void ComputeDirectionWeights(const float4 &normal, float weights[N_DIRECTIONS])
 {
   const static float3 normal_directions[N_DIRECTIONS] = {
-      {0,  1, 0},  // Up
-      {0,  -1,  0}, // Down
+      {0,  1,  0},  // Up
+      {0,  -1, 0}, // Down
       {1,  0,  0},  // Left
       {-1, 0,  0},  // Right
       {0,  0,  -1},  // Forward

@@ -4,115 +4,16 @@
 #include "core/block_array.h"
 #include "core/directional_tsdf.h"
 #include "core/functions.h"
+#include "mapping/allocate.h"
 #include "mapping/update_simple.h"
 #include "engine/main_engine.h"
 #include "sensor/rgbd_sensor.h"
 #include "geometry/spatial_query.h"
 #include "util/debugging.hpp"
 
-// Switches between multi directional fusion (weighted fusion into all compliant directions) and
-// selection fusion (fuse only into most-compliant direction)
-#define MULTI_DIRECTIONAL_FUSION
-
-__device__
-const static float direction_weight_threshold = 0.3826834323650898f; // approx of sin(pi/8)
-
 ////////////////////
 /// Device code
 ////////////////////
-
-/** Allocates the first Voxel Arrays for every given Block
- */
-__global__
-void AllocateVoxelArrayKernel(
-    EntryArray candidate_entries,
-    uint num_entries,
-    BlockArray blocks
-)
-{
-  size_t idx = (blockIdx.x * blockDim.x) + threadIdx.x;
-  if (idx >= num_entries)
-  {
-    return;
-  }
-  const HashEntry &entry = candidate_entries[idx];
-
-  blocks.AllocateVoxelArrayWithMutex(entry.ptr, 0);
-}
-
-/** Allocates Voxel Arrays for the given Blocks with respect to the input normal map.
- */
-__global__
-void AllocateVoxelArrayKernelDirectional(
-    EntryArray candidate_entries,
-    uint num_entries,
-    BlockArray blocks,
-    SensorData sensor_data,
-    SensorParams sensor_params,
-    float4x4 cTw,
-    float4x4 wTc,
-    GeometryHelper geometry_helper
-)
-{
-  size_t idx = (blockIdx.x * blockDim.x) + threadIdx.x;
-  if (idx >= num_entries)
-  {
-    return;
-  }
-  const HashEntry &entry = candidate_entries[idx];
-
-  int3 voxel_base_pos = geometry_helper.BlockToVoxel(entry.pos);
-
-  int allocate_directions[6] = {0};
-  // For each voxel check which direction normal is pointing -> allocate VoxelArrays accordingly
-  for (uint voxel_idx = 0; voxel_idx < BLOCK_SIZE; voxel_idx++)
-  {
-    int3 voxel_pos = voxel_base_pos + make_int3(geometry_helper.DevectorizeIndex(voxel_idx));
-    float3 world_pos = geometry_helper.VoxelToWorld(voxel_pos);
-    float3 camera_pos = cTw * world_pos;
-    uint2 image_pos = make_uint2(
-        geometry_helper.CameraProjectToImagei(camera_pos,
-                                              sensor_params.fx, sensor_params.fy,
-                                              sensor_params.cx, sensor_params.cy));
-    if (image_pos.x >= sensor_params.width or image_pos.y >= sensor_params.height)
-      continue;
-
-    float4 normal = tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y);
-    if (not IsValidNormal(normal))
-    { // No normal value for this coordinate (NaN or only 0s)
-      continue;
-    }
-    normal.w = 1;
-
-    float4x4 wTcRotOnly = wTc;
-    wTcRotOnly.m14 = 0;
-    wTcRotOnly.m24 = 0;
-    wTcRotOnly.m34 = 0;
-    float4 normal_world = wTcRotOnly * normal;
-
-#ifdef MULTI_DIRECTIONAL_FUSION
-    float weights[N_DIRECTIONS];
-    ComputeDirectionWeights(normal_world, weights);
-
-    for (size_t direction = 0; direction < N_DIRECTIONS; direction++)
-    {
-      allocate_directions[direction] |= (weights[direction] >= direction_weight_threshold);
-    }
-#else
-    TSDFDirection direction = VectorToTSDFDirection(normal_world);
-    allocate_directions[static_cast<size_t>(direction)] = 1;
-#endif // MULTI_DIRECTIONAL_FUSION
-  }
-
-  for (uint i = 0; i < 6; i++)
-  {
-    if (allocate_directions[i])
-    {
-      blocks.AllocateVoxelArrayWithMutex(entry.ptr, i);
-    }
-  }
-}
-
 
 __global__
 void UpdateBlocksSimpleKernel(
@@ -283,7 +184,6 @@ void UpdateBlocksSimpleKernelDirectional(
   wTcRotOnly.m34 = 0;
   float4 normal_world = wTcRotOnly * normal;
 
-#ifdef MULTI_DIRECTIONAL_FUSION
   float weights[N_DIRECTIONS];
   ComputeDirectionWeights(normal_world, weights);
   for (size_t direction = 0; direction < N_DIRECTIONS; direction++)
@@ -312,23 +212,6 @@ void UpdateBlocksSimpleKernelDirectional(
     }
     voxel.Update(delta);
   }
-#else
-  TSDFDirection direction = VectorToTSDFDirection(normal_world);
-  Voxel &voxel = blocks.GetVoxelArray(entry.ptr, static_cast<size_t>(direction)).voxels[local_idx];
-  Voxel delta;
-  delta.sdf = sdf;
-  delta.inv_sigma2 = inv_sigma2;
-
-  if (sensor_data.color_data)
-  {
-    float4 color = tex2D<float4>(sensor_data.color_texture, image_pos.x, image_pos.y);
-    delta.color = make_uchar3(255 * color.x, 255 * color.y, 255 * color.z);
-  } else
-  {
-    delta.color = make_uchar3(0, 255, 0);
-  }
-  voxel.Update(delta);
-#endif // MULTI_DIRECTIONAL_FUSION
 }
 
 double UpdateBlocksSimple(
