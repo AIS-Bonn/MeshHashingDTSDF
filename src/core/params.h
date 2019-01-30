@@ -77,6 +77,7 @@ struct SensorParams {
 struct RuntimeParams {
   int  dataset_type;
   int  update_type;
+  int  raycasting_mode;
   bool enable_point_to_plane;
 
   bool enable_directional_sdf;

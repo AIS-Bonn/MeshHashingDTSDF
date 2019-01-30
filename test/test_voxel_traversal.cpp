@@ -75,12 +75,10 @@ TEST_CASE("test non-axis-aligned direction", "[voxel_traversal]")
     if (count % 3 == 0)
     {
       voxel.x -= 1;
-    }
-    else if (count % 3 == 1)
+    } else if (count % 3 == 1)
     {
       voxel.y -= 1;
-    }
-    else if (count % 3 == 2)
+    } else if (count % 3 == 2)
     {
       voxel.z -= 1;
     }
@@ -106,6 +104,7 @@ TEST_CASE("test truncation range", "[voxel_traversal]")
   while (voxel_traversal.HasNextVoxel())
   {
     voxel = voxel_traversal.GetNextVoxel();
+//    printf("(%i, %i, %i), ", voxel.x, voxel.y, voxel.z);
     count += 1;
   }
   float dist = length(geometry_helper.VoxelToWorld(voxel) - origin);

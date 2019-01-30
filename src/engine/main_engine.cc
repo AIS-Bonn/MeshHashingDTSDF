@@ -160,7 +160,7 @@ void MainEngine::Mapping(Sensor &sensor)
         collect_time,
         update_time,
         integrated_frame_count_);
-  } else if (runtime_params_.update_type == 1)
+  } else if (runtime_params_.update_type >= 1)
   {
     update_time = UpdateRaycasting(candidate_entries_,
                                    blocks_,

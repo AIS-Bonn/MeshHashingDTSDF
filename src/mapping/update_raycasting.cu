@@ -9,6 +9,10 @@
 /// Device code
 ////////////////////
 
+#define RAY_DIRECTION_CAMERA 0
+#define RAY_DIRECTION_NORMAL 1
+#define RAY_DIRECTION_POS_CAMERA_NEG_NORMAL 2
+
 __global__
 void UpdateRaycastingKernel(
     BlockArray blocks,
@@ -18,6 +22,7 @@ void UpdateRaycastingKernel(
     float4x4 cTw,
     float4x4 wTc,
     bool enable_point_to_plane,
+    const int mode,
     HashTable hash_table,
     GeometryHelper geometry_helper
 )
@@ -28,9 +33,6 @@ void UpdateRaycastingKernel(
 
   if (ux >= sensor_params.width || uy >= sensor_params.height)
     return;
-
-//  if (ux != 320 or uy != 240)
-//    return;
 
   float depth = tex2D<float>(sensor_data.depth_texture, ux, uy);
   float4 normal_camera = tex2D<float4>(sensor_data.normal_texture, ux, uy);
@@ -53,15 +55,26 @@ void UpdateRaycastingKernel(
 
 
   // Traverse voxels in normal's direction through measured surface point
-  float3 origin = point_world_pos - truncation_distance * normal_world;
+  float3 origin;
+  float3 direction;
+
+  if (mode == RAY_DIRECTION_CAMERA)
+  {
+    float3 camera_world_pos = make_float3(wTc * make_float4(0, 0, 0, 1));
+    direction = normalize(point_world_pos - camera_world_pos);
+    origin = point_world_pos + truncation_distance * direction;
+  } else if (mode == RAY_DIRECTION_NORMAL)
+  {
+    origin = point_world_pos - truncation_distance * normal_world;
+    direction = normal_world;
+  }
+
+
   VoxelTraversal voxel_traversal(
       origin,
       normal_world,
       2 * truncation_distance, // 2 * truncation, because it covers both positive and negative range
       geometry_helper);
-//  printf("(%f, %f, %f)[%f, %f, %f]\t",
-//         origin.x, origin.y, origin.z,
-//         normal_world.x, normal_world.y, normal_world.z);
   while (voxel_traversal.HasNextVoxel())
   {
     int3 voxel_idx = voxel_traversal.GetNextVoxel();
@@ -83,14 +96,6 @@ void UpdateRaycastingKernel(
     float3 voxel_world_pos = geometry_helper.VoxelToWorld(voxel_idx);
     float3 voxel_camera_pos = cTw * voxel_world_pos;
 
-
-//    if (ux == 320 and uy == 240)
-//    {
-//      printf("(%i, %i, %i) %f || ",
-//             voxel_idx.x, voxel_idx.y, voxel_idx.z,
-//             dot(point_world_pos - voxel_world_pos, -normal_world)
-//      );
-//    }
 
 //    float weight = fmaxf(10 * geometry_helper.weight_sample * (1.0f - normalized_depth), 1.0f);
 
@@ -188,6 +193,7 @@ double UpdateRaycasting(
           sensor.cTw(),
           sensor.wTc(),
           runtime_params.enable_point_to_plane,
+          runtime_params.raycasting_mode,
           hash_table,
           geometry_helper);
   checkCudaErrors(cudaDeviceSynchronize());

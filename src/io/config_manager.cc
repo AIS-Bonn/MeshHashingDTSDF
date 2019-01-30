@@ -15,6 +15,7 @@ void LoadRuntimeParams(std::string path, RuntimeParams& params) {
   cv::FileStorage fs(path, cv::FileStorage::READ);
   params.dataset_type  = (int)fs["dataset_type"];
   params.update_type  = (int)fs["update_type"];
+  params.raycasting_mode  = (int)fs["raycasting_mode"];
 
   params.enable_point_to_plane = (int)fs["enable_point_to_plane"];
   params.enable_directional_sdf = (int)fs["enable_directional_sdf"];
