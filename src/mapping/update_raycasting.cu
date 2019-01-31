@@ -1,7 +1,7 @@
 #include "core/functions.h"
 #include "mapping/allocate.h"
 #include "mapping/update_raycasting.h"
-#include "mapping/voxel_traversal.hpp"
+#include "mapping/block_traversal.hpp"
 #include "util/timer.h"
 #include "geometry/geometry_helper.h"
 
@@ -70,14 +70,14 @@ void UpdateRaycastingKernel(
   }
 
 
-  VoxelTraversal voxel_traversal(
+  BlockTraversal voxel_traversal(
       origin,
       normal_world,
       2 * truncation_distance, // 2 * truncation, because it covers both positive and negative range
       geometry_helper);
-  while (voxel_traversal.HasNextVoxel())
+  while (voxel_traversal.HasNextBlock())
   {
-    int3 voxel_idx = voxel_traversal.GetNextVoxel();
+    int3 voxel_idx = voxel_traversal.GetNextBlock();
 
     int3 block_idx = geometry_helper.VoxelToBlock(voxel_idx);
     uint local_idx = geometry_helper.VectorizeOffset(geometry_helper.VoxelToOffset(block_idx, voxel_idx));
