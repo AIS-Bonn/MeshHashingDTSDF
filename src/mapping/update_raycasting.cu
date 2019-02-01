@@ -62,8 +62,8 @@ void UpdateRaycastingKernel(
   {
     float3 camera_world_pos = make_float3(wTc * make_float4(0, 0, 0, 1));
     direction = normalize(point_world_pos - camera_world_pos);
-    origin = point_world_pos + truncation_distance * direction;
-  } else if (mode == RAY_DIRECTION_NORMAL)
+    origin = point_world_pos - truncation_distance * direction;
+  } else // rmode == RAY_DIRECTION_NORMAL)
   {
     origin = point_world_pos - truncation_distance * normal_world;
     direction = normal_world;
@@ -72,9 +72,9 @@ void UpdateRaycastingKernel(
 
   BlockTraversal voxel_traversal(
       origin,
-      normal_world,
+      direction,
       2 * truncation_distance, // 2 * truncation, because it covers both positive and negative range
-      geometry_helper);
+      geometry_helper.voxel_size);
   while (voxel_traversal.HasNextBlock())
   {
     int3 voxel_idx = voxel_traversal.GetNextBlock();
