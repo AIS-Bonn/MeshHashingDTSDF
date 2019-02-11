@@ -13,11 +13,21 @@
 // See what entries of @param hash_table
 // was affected by @param sensor
 // with the help of @param geometry_helper
+/**
+ * Check which blocks are affected by the current sensor readings and allocate new blocks, if necessary.
+ *
+ * @param hash_table
+ * @param sensor
+ * @param runtime_params
+ * @param geometry_helper
+ * @return
+ */
 double AllocBlockArray(
     HashTable &hash_table,
     Sensor &sensor,
     RuntimeParams &runtime_params,
-    GeometryHelper &geometry_helper
+    GeometryHelper &geometry_helper,
+    EntryArray candidate_entries
 );
 
 /** Allocates the first Voxel Arrays for every given Block

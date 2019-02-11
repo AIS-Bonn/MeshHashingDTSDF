@@ -29,10 +29,11 @@ __global__
 void CollectBlocksInFrustumKernel(
     HashTable hash_table,
     SensorParams sensor_params,
-    float4x4     c_T_w,
+    float4x4 c_T_w,
     GeometryHelper geometry_helper,
     EntryArray candidate_entries
-) {
+)
+{
   const uint idx = blockIdx.x * blockDim.x + threadIdx.x;
 
   __shared__ int local_counter;
@@ -41,21 +42,24 @@ void CollectBlocksInFrustumKernel(
 
   int addr_local = -1;
   if (idx < hash_table.entry_count
-    && hash_table.entry(idx).ptr != FREE_ENTRY
-    && geometry_helper.IsBlockInCameraFrustum(c_T_w, hash_table.entry(idx).pos,
-                                        sensor_params)) {
+      && hash_table.entry(idx).ptr != FREE_ENTRY
+      && geometry_helper.IsBlockInCameraFrustum(c_T_w, hash_table.entry(idx).pos,
+                                                sensor_params))
+  {
     addr_local = atomicAdd(&local_counter, 1);
   }
   __syncthreads();
 
   __shared__ int addr_global;
-  if (threadIdx.x == 0 && local_counter > 0) {
+  if (threadIdx.x == 0 && local_counter > 0)
+  {
     addr_global = atomicAdd(&candidate_entries.counter(),
                             local_counter);
   }
   __syncthreads();
 
-  if (addr_local != -1) {
+  if (addr_local != -1)
+  {
     const uint addr = addr_global + addr_local;
     candidate_entries[addr] = hash_table.entry(idx);
   }
@@ -65,7 +69,8 @@ __global__
 void CollectAllBlocksKernel(
     HashTable hash_table,
     EntryArray candidate_entries
-) {
+)
+{
   const uint idx = blockIdx.x * blockDim.x + threadIdx.x;
 
   __shared__ int local_counter;
@@ -74,23 +79,66 @@ void CollectAllBlocksKernel(
 
   int addr_local = -1;
   if (idx < hash_table.entry_count
-      && hash_table.entry(idx).ptr != FREE_ENTRY) {
+      && hash_table.entry(idx).ptr != FREE_ENTRY)
+  {
     addr_local = atomicAdd(&local_counter, 1);
   }
 
   __syncthreads();
 
   __shared__ int addr_global;
-  if (threadIdx.x == 0 && local_counter > 0) {
+  if (threadIdx.x == 0 && local_counter > 0)
+  {
     addr_global = atomicAdd(&candidate_entries.counter(),
                             local_counter);
   }
   __syncthreads();
 
-  if (addr_local != -1) {
+  if (addr_local != -1)
+  {
     const uint addr = addr_global + addr_local;
     candidate_entries[addr] = hash_table.entry(idx);
   }
+}
+
+__global__
+void CollectFlaggedBlocksKernel(
+    HashTable hash_table,
+    EntryArray candidate_entries
+)
+{
+  const uint idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (idx >= hash_table.entry_count)
+    return;
+
+  __shared__ int local_counter;
+  if (threadIdx.x == 0) local_counter = 0;
+  __syncthreads();
+
+  int addr_local = -1;
+  if (candidate_entries.flag(idx) and hash_table.entry(idx).ptr != FREE_ENTRY)
+  {
+    addr_local = atomicAdd(&local_counter, 1);
+  }
+
+  __syncthreads();
+
+  __shared__ int addr_global;
+  if (threadIdx.x == 0 && local_counter > 0)
+  {
+    addr_global = atomicAdd(&candidate_entries.counter(),
+                            local_counter);
+  }
+  __syncthreads();
+
+  if (addr_local != -1)
+  {
+    const uint addr = addr_global + addr_local;
+    candidate_entries[addr] = hash_table.entry(idx);
+  }
+
+  candidate_entries.flag(idx) = 0; // Reset for recycle step
 }
 
 ////////////////////
@@ -103,7 +151,8 @@ void CollectAllBlocksKernel(
 void CollectAllBlocks(
     HashTable &hash_table,
     EntryArray &candidate_entries
-) {
+)
+{
   const uint threads_per_block = 256;
 
   uint entry_count = hash_table.entry_count;
@@ -112,8 +161,8 @@ void CollectAllBlocks(
   const dim3 block_size(threads_per_block, 1);
 
   candidate_entries.reset_count();
-  CollectAllBlocksKernel <<<grid_size, block_size >>>(
-          hash_table,
+  CollectAllBlocksKernel << < grid_size, block_size >> > (
+      hash_table,
           candidate_entries);
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());
@@ -124,10 +173,11 @@ void CollectAllBlocks(
 
 double CollectBlocksInFrustum(
     HashTable &hash_table,
-    Sensor   &sensor,
+    Sensor &sensor,
     GeometryHelper &geometry_helper,
     EntryArray &candidate_entries
-) {
+)
+{
 
   Timer timer;
   timer.Tick();
@@ -140,7 +190,7 @@ double CollectBlocksInFrustum(
   const dim3 block_size(threads_per_block, 1);
 
   candidate_entries.reset_count();
-  CollectBlocksInFrustumKernel <<<grid_size, block_size >>>(
+  CollectBlocksInFrustumKernel << < grid_size, block_size >> > (
       hash_table,
           sensor.sensor_params(),
           sensor.cTw(),
@@ -155,3 +205,30 @@ double CollectBlocksInFrustum(
   return timer.Tock();
 }
 
+double CollectFlaggedBlocks(
+    HashTable &hash_table,
+    EntryArray &candidate_entries
+)
+{
+  Timer timer;
+  timer.Tick();
+  const uint threads_per_block = 256;
+
+  uint entry_count = hash_table.entry_count;
+  const dim3 grid_size((entry_count + threads_per_block - 1)
+                       / threads_per_block, 1);
+  const dim3 block_size(threads_per_block, 1);
+
+  candidate_entries.reset_count();
+
+  CollectFlaggedBlocksKernel << < grid_size, block_size >> > (
+      hash_table,
+          candidate_entries);
+
+  checkCudaErrors(cudaDeviceSynchronize());
+
+  checkCudaErrors(cudaGetLastError());
+
+  LOG(INFO) << "Total flagged block count: " << candidate_entries.count();
+  return timer.Tock();
+}

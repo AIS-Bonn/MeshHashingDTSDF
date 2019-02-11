@@ -120,13 +120,19 @@ void MainEngine::Mapping(Sensor &sensor)
       hash_table_,
       sensor,
       runtime_params_,
-      geometry_helper_
+      geometry_helper_,
+      candidate_entries_
   );
 
-  double collect_time = CollectBlocksInFrustum(
+  double collect_time;
+//  collect_time = CollectBlocksInFrustum(
+//      hash_table_,
+//      sensor,
+//      geometry_helper_,
+//      candidate_entries_
+//  );
+  collect_time = CollectFlaggedBlocks(
       hash_table_,
-      sensor,
-      geometry_helper_,
       candidate_entries_
   );
 

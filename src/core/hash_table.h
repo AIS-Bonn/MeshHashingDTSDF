@@ -63,6 +63,8 @@ private:
 public:
   __device__ HashEntry GetEntry(const int3& pos) const;
 
+  __device__ int GetEntryIndex(const int3& pos) const;
+
   __device__ void AllocEntry(const int3& pos);
 
   __device__ bool FreeEntry(const int3& pos);

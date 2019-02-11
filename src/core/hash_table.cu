@@ -43,19 +43,14 @@ void HashTableResetEntriesKernel(
 }
 
 __device__
-HashEntry HashTable::GetEntry(const int3& pos) const {
+int HashTable::GetEntryIndex(const int3& pos) const {
   uint bucket_idx             = HashBucketForBlockPos(pos);
   uint bucket_first_entry_idx = bucket_idx * bucket_size;
-
-  HashEntry entry;
-  entry.pos    = pos;
-  entry.offset = 0;
-  entry.ptr    = FREE_ENTRY;
 
   for (uint i = 0; i < bucket_size; ++i) {
     HashEntry curr_entry = entries_[i + bucket_first_entry_idx];
     if (IsPosAllocated(pos, curr_entry)) {
-      return curr_entry;
+      return i + bucket_first_entry_idx;
     }
   }
 
@@ -69,7 +64,7 @@ HashEntry HashTable::GetEntry(const int3& pos) const {
     HashEntry curr_entry = entries_[i];
 
     if (IsPosAllocated(pos, curr_entry)) {
-      return curr_entry;
+      return i;
     }
     if (curr_entry.offset == 0) {
       break;
@@ -77,6 +72,21 @@ HashEntry HashTable::GetEntry(const int3& pos) const {
     i = (bucket_last_entry_idx + curr_entry.offset) % (entry_count);
   }
 #endif
+  return FREE_ENTRY;
+}
+
+__device__
+HashEntry HashTable::GetEntry(const int3& pos) const {
+  int entry_idx = GetEntryIndex(pos);
+  if (entry_idx >= 0)
+  {
+    return entries_[entry_idx];
+  }
+
+  HashEntry entry;
+  entry.pos    = pos;
+  entry.offset = 0;
+  entry.ptr    = FREE_ENTRY;
   return entry;
 }
 
@@ -85,6 +95,7 @@ __device__
 void HashTable::AllocEntry(const int3& pos) {
   uint bucket_idx             = HashBucketForBlockPos(pos);		//hash bucket
   uint bucket_first_entry_idx = bucket_idx * bucket_size;	//hash position
+
 
   /// 1. Try GetEntry, meanwhile collect an empty entry potentially suitable
   int empty_entry_idx = -1;

@@ -196,6 +196,9 @@ void RecycleGarbageVerticesKernel(
 )
 {
   if (candidate_entries.flag(blockIdx.x) == 0) return;
+
+  candidate_entries.flag(blockIdx.x) = 0; // Reset flag for next iteration
+
   const HashEntry &entry = candidate_entries[blockIdx.x];
   const uint local_idx = threadIdx.x;
 

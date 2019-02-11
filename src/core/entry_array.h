@@ -45,7 +45,10 @@ private:
   // @param read-write element
   int       *counter_;       /// atomic counter
 
-  /** Flag for garbage collection. 1 means remove entry, 0 means do nothing. */
+  /** Flag for dual purpose:
+   * 1) For flagging, that an entry was observed (allocation phase)
+   * 2) For garbage collection. 1 means remove entry, 0 means do nothing.
+   */
   uchar     *flags_;
 
 };

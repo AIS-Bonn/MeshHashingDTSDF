@@ -10,23 +10,34 @@
 #include "sensor/rgbd_sensor.h"
 #include "geometry/geometry_helper.h"
 
-// @function
-// Read the entries in @param hash_table
-// Write to the @param candidate_entries (for parallel computation)
+/**
+ * Read the entries in hash_table
+ * Write to the candidate_entries (for parallel computation)
+ */
 void CollectAllBlocks(
     HashTable &hash_table,
     EntryArray &candidate_entries
 );
 
-// @function
-// Read the entries in @param hash_table
-// Filter the positions with @param sensor info (pose and params),
-//                       and @param geometry helper
-// Write to the @param candidate_entries (for parallel computation)
+/**
+ * Read the entries in hash_table
+ * Filter the positions with sensor info (pose and params),
+ *                       and geometry helper
+ * Write to the candidate_entries (for parallel computation)
+ */
 double CollectBlocksInFrustum(
     HashTable &hash_table,
     Sensor &sensor,
     GeometryHelper &geometry_helper,
+    EntryArray &candidate_entries
+);
+
+/**
+ * Collect all blocks flagged for update during allocation in candidate_entries and
+ * write them in sequential order for fast processing
+ */
+double CollectFlaggedBlocks(
+    HashTable &hash_table,
     EntryArray &candidate_entries
 );
 

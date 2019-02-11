@@ -15,6 +15,7 @@
  * @param sensor_params
  * @param w_T_c
  * @param geometry_helper
+ * @param candidate_entries
  * @param allocate_along_normal Determines wheter allocation is done along the view ray or in normal direction
  */
 __global__
@@ -23,6 +24,7 @@ void AllocBlockArrayKernel(HashTable hash_table,
                            SensorParams sensor_params,
                            float4x4 w_T_c,
                            GeometryHelper geometry_helper,
+                           EntryArray candidate_entries,
                            bool allocate_along_normal)
 {
 
@@ -87,6 +89,13 @@ void AllocBlockArrayKernel(HashTable hash_table,
   {
     int3 block_idx = block_traversal.GetNextBlock();
     hash_table.AllocEntry(block_idx);
+
+    // Flag the corresponding hash entry
+    int entry_idx = hash_table.GetEntryIndex(block_idx);
+    if (entry_idx >= 0)
+    {
+      candidate_entries.flag(entry_idx) |= 1;
+    }
   }
 }
 
@@ -94,7 +103,8 @@ double AllocBlockArray(
     HashTable &hash_table,
     Sensor &sensor,
     RuntimeParams &runtime_params,
-    GeometryHelper &geometry_helper
+    GeometryHelper &geometry_helper,
+    EntryArray candidate_entries
 )
 {
   Timer timer;
@@ -113,6 +123,7 @@ double AllocBlockArray(
           sensor.data(),
           sensor.sensor_params(), sensor.wTc(),
           geometry_helper,
+          candidate_entries,
           runtime_params.raycasting_mode == 1
   );
   checkCudaErrors(cudaDeviceSynchronize());
