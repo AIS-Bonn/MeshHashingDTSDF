@@ -119,6 +119,7 @@ void MainEngine::Mapping(Sensor &sensor)
   double alloc_time = AllocBlockArray(
       hash_table_,
       sensor,
+      runtime_params_,
       geometry_helper_
   );
 

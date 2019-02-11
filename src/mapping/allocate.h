@@ -14,9 +14,10 @@
 // was affected by @param sensor
 // with the help of @param geometry_helper
 double AllocBlockArray(
-    HashTable& hash_table,
-    Sensor& sensor,
-    GeometryHelper& geometry_helper
+    HashTable &hash_table,
+    Sensor &sensor,
+    RuntimeParams &runtime_params,
+    GeometryHelper &geometry_helper
 );
 
 /** Allocates the first Voxel Arrays for every given Block
@@ -40,4 +41,16 @@ void AllocateVoxelArrayKernelDirectional(
     float4x4 cTw,
     float4x4 wTc,
     GeometryHelper geometry_helper
+);
+
+__global__
+void AllocateVoxelArrayRaycastingKernel(
+    HashTable hash_table,
+    BlockArray blocks,
+    SensorData sensor_data,
+    SensorParams sensor_params,
+    float4x4 wTc,
+    GeometryHelper geometry_helper,
+    bool allocate_along_normal,
+    bool allocate_directional
 );

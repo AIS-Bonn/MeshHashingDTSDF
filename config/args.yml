@@ -12,7 +12,7 @@ dataset_type:    3
 update_type: 1
 
 # Raycasting mode
-# 0: Standard raycasting (in observation direction)
+# 0: Standard raycasting (direction = camera-surfacepoint)
 # 1: Ray casting with normal-induced truncation direction
 raycasting_mode: 1
 

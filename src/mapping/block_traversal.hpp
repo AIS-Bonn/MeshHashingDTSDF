@@ -7,14 +7,23 @@
 
 struct BlockTraversal
 {
+  /**
+   * @param origin Ray origin
+   * @param dir Ray direction
+   * @param truncation_distance Truncation distance
+   * @param block_size Size of the blocks to traverse
+   * @param round_to_nearest Whether to round the indices to the nearest responsible index (used for Voxels)
+   */
   __device__ __host__
   BlockTraversal(const float3 &origin,
                  const float3 &dir,
                  const float truncation_distance,
-                 const float block_size
+                 const float block_size,
+                 const bool round_to_nearest = true
   )
       : origin(origin), direction(normalize(dir)), truncation_distance(truncation_distance),
         block_size(block_size),
+        round_to_nearest(round_to_nearest),
         step_size(make_int3(dir.x > 0 ? 1 : -1,
                             dir.y > 0 ? 1 : -1,
                             dir.z > 0 ? 1 : -1)),
@@ -59,7 +68,16 @@ struct BlockTraversal
   inline int3 WorldToBlocki(const float3 world_pos)
   {
     const float3 p = WorldToBlockf(world_pos);
-    return make_int3(p + make_float3(sign(p)) * 0.5f);
+    // FIXME: This only finds the nearest responsible voxel, not working for blocks
+    if (round_to_nearest)
+    {
+      return make_int3(p + make_float3(sign(p)) * 0.5f);
+    }
+    int3 idx = make_int3(p);
+    if (p.x < 0) idx.x -= 1;
+    if (p.y < 0) idx.y -= 1;
+    if (p.z < 0) idx.z -= 1;
+    return idx;
   }
 
 
@@ -103,14 +121,11 @@ struct BlockTraversal
     return current_block;
   }
 
-  /** Ray origin */
   const float3 origin;
-  /** Ray direction */
   const float3 direction;
-  /** Truncation distance */
   const float truncation_distance;
-  /** Size of the blocks to traverse */
   const float block_size;
+  const bool round_to_nearest;
 
   const int3 step_size;
 
@@ -118,11 +133,11 @@ struct BlockTraversal
   const float3 tDelta;
 
   /** Distance along the ray of the next boundary crossing in x/y/z direction, respectively */
-  float3 tMax;
+  float3 tMax{};
 
   /** Traversed distance along the ray */
   float distance;
 
   /** Next block (integer coordinates) */
-  int3 next_block;
+  int3 next_block{};
 };

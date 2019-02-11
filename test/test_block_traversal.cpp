@@ -99,3 +99,24 @@ TEST_CASE("test truncation range", "[block_traversal]")
   float dist = length(make_float3(block) * block_size - origin);
   REQUIRE(dist >= truncation_distance - block_size);
 }
+
+TEST_CASE("test start position rounding", "[block_traversal]")
+{
+  float3 origin = make_float3(0.21f, -0.21f, 0.31f); // -> start position (1, -2, 1)
+  float3 direction = make_float3(0, 1, 0);
+
+  BlockTraversal block_traversal(
+      origin,
+      direction,
+      0.8, // truncation distance
+      0.2, // block size
+      false // switch off rounding to nearest responsible index
+  );
+
+  float3 p = block_traversal.WorldToBlockf(origin);
+  float3 offset = make_float3(sign(p)) * 0.5f;
+  int3 start_pos = make_int3(floorf(p + offset));
+
+  int3 block = block_traversal.GetNextBlock();
+  REQUIRE(block == make_int3(1, -2, 1)); // check if rounding is done correctly
+}

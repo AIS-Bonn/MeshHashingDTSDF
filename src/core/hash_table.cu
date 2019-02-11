@@ -96,8 +96,9 @@ void HashTable::AllocEntry(const int3& pos) {
     }
 
     /// wei: should not break and alloc before a thorough searching is over:
-    if (empty_entry_idx == -1 && curr_entry.ptr == FREE_ENTRY) {
+    if (curr_entry.ptr == FREE_ENTRY) {
       empty_entry_idx = i;
+      break;
     }
   }
 
@@ -116,6 +117,7 @@ void HashTable::AllocEntry(const int3& pos) {
     i = (bucket_last_entry_idx + curr_entry.offset) % (entry_count);
   }
 #endif
+
 
   /// 2. NOT FOUND, Allocate
   if (empty_entry_idx != -1) {
