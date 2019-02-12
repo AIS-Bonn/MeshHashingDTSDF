@@ -81,3 +81,40 @@ bool IsMCIndexDirectionCompatible(const short mc_index, const TSDFDirection dire
   }
   return true;
 }
+
+const char *TSDFDirectionToString(TSDFDirection direction)
+{
+  switch (direction)
+  {
+    case TSDFDirection::UP:
+      return "UP";
+    case TSDFDirection::DOWN:
+      return "DOWN";
+    case TSDFDirection::RIGHT:
+      return "RIGHT";
+    case TSDFDirection::FORWARD:
+      return "FORWARD";
+    case TSDFDirection::LEFT:
+      return "LEFT";
+    case TSDFDirection::BACKWARD:
+      return "BACKWARD";
+  }
+}
+
+void ComputeDirectionWeights(const float4 &normal, float *weights)
+{
+  const static float3 normal_directions[N_DIRECTIONS] = {
+      {0,  1,  0},  // Up
+      {0,  -1, 0}, // Down
+      {1,  0,  0},  // Left
+      {-1, 0,  0},  // Right
+      {0,  0,  -1},  // Forward
+      {0,  0,  1},  // Backward
+  };
+  float3 vector_ = make_float3(normal);
+  for (size_t i = 0; i < 3; i++)
+  {
+    weights[2 * i] = dot(vector_, normal_directions[2 * i]);
+    weights[2 * i + 1] = -weights[2 * i]; // opposite direction -> negative value
+  }
+}
