@@ -61,9 +61,6 @@ int main(int argc, char **argv) {
       config.ray_caster_params
   );
 
-  main_engine.ConfigMappingEngine(
-      false
-  );
 
   gl::Light light;
   light.Load("../config/lights.yaml");

@@ -2,7 +2,6 @@
 #include "hash_table.h"
 #include "entry_array.h"
 
-//#include "engine/main_engine.h"
 #include "sensor/rgbd_sensor.h"
 #include <geometry/geometry_helper.h>
 
@@ -16,13 +15,6 @@
 #include <device_launch_parameters.h>
 #include <util/timer.h>
 #include "meshing/mc_tables.h"
-
-
-#define PINF  __int_as_float(0x7f800000)
-
-////////////////////
-/// class MappingEngine - compress, recycle
-////////////////////
 
 /// Condition: IsBlockInCameraFrustum
 __global__

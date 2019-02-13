@@ -87,9 +87,6 @@ int main(int argc, char **argv) {
       config.sensor_params,
       config.ray_caster_params
   );
-  main_engine.ConfigMappingEngine(
-      false
-  );
   main_engine.ConfigVisualizingEngine(
       light,
       args.enable_navigation,

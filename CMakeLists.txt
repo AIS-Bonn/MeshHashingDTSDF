@@ -135,7 +135,6 @@ CUDA_ADD_LIBRARY(mesh-hashing-cuda
   ${VH}/localizing/point_to_psdf.cu
   ${VH}/mapping/allocate.cu
   ${VH}/mapping/update_simple.cu
-  ${VH}/mapping/update_bayesian.cu
   ${VH}/mapping/update_raycasting.cu
   ${VH}/mapping/recycle.cu
 
@@ -162,7 +161,6 @@ TARGET_LINK_LIBRARIES(mesh-hashing-cuda
 ### 3. C++
 ADD_LIBRARY(mesh-hashing
   ${VH}/engine/main_engine.cc
-  ${VH}/engine/mapping_engine.cc
   ${VH}/engine/logging_engine.cc
   ${VH}/engine/visualizing_engine.cc
 

@@ -36,7 +36,8 @@
 
 #define DEBUG_
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
   CheckCUDADevices();
 
   /// Use this to substitute tedious argv parsing
@@ -58,10 +59,6 @@ int main(int argc, char **argv) {
       config.mesh_params,
       config.sensor_params,
       config.ray_caster_params
-  );
-
-  main_engine.ConfigMappingEngine(
-      false
   );
 
   gl::Light light;
@@ -108,8 +105,7 @@ int main(int argc, char **argv) {
   main_engine.StoreBlocks("block");
   main_engine.FinalLog();
 
-  while(args.enable_navigation and not main_engine.Visualize(cTw))
-    ;
+  while (args.enable_navigation and not main_engine.Visualize(cTw));
 
   return 0;
 }

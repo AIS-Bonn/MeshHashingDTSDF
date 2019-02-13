@@ -2,7 +2,6 @@
 // Created by wei on 17-10-22.
 //
 
-#include <mapping/update_bayesian.h>
 #include <optimize/primal_dual.h>
 #include "engine/main_engine.h"
 
@@ -150,7 +149,6 @@ void MainEngine::Mapping(Sensor &sensor)
   );
 
 
-
   double update_time = 0;
   if (runtime_params_.update_type == UPDATE_TYPE_VOXEL_PROJECTION)
   {
@@ -218,13 +216,10 @@ void MainEngine::Recycle()
   const static int kRecycleGap = 15;
   if (integrated_frame_count_ % kRecycleGap == kRecycleGap - 1)
   {
-    if (not map_engine_.enable_bayesian_update())
-    {
-      StarveOccupiedBlockArray(candidate_entries_, blocks_);
-      CollectGarbageBlockArray(candidate_entries_,
-                               blocks_,
-                               geometry_helper_);
-    }
+    StarveOccupiedBlockArray(candidate_entries_, blocks_);
+    CollectGarbageBlockArray(candidate_entries_,
+                             blocks_,
+                             geometry_helper_);
     hash_table_.ResetMutexes();
     RecycleGarbageBlockArray(candidate_entries_,
                              blocks_,
@@ -440,15 +435,6 @@ void MainEngine::Reset()
   mesh_.Reset();
 
   candidate_entries_.Reset();
-}
-
-void MainEngine::ConfigMappingEngine(
-    bool enable_bayesian_update
-)
-{
-  map_engine_.Init(sensor_params_.width,
-                   sensor_params_.height,
-                   enable_bayesian_update);
 }
 
 void MainEngine::ConfigVisualizingEngine(

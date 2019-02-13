@@ -16,7 +16,6 @@
 #include "visualization/compact_mesh.h"
 #include "visualization/bounding_box.h"
 #include "sensor/rgbd_sensor.h"
-#include "mapping_engine.h"
 
 class MainEngine {
 public:
@@ -33,10 +32,6 @@ public:
   void Reset();
 
   // configure engines
-  void ConfigMappingEngine(
-      bool enable_bayesian_update
-  );
-
   void ConfigLocalizingEngine();
   void ConfigVisualizingEngine(
       gl::Light& light,
@@ -76,7 +71,6 @@ public:
 
 private:
   // Engines
-  MappingEngine     map_engine_;
   VisualizingEngine vis_engine_;
   LoggingEngine     log_engine_;
 
