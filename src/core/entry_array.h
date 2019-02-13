@@ -45,12 +45,15 @@ private:
   // @param read-write element
   int       *counter_;       /// atomic counter
 
-  /** Flag for dual purpose:
-   * 1) For flagging, that an entry was observed (allocation phase)
-   * 2) For garbage collection. 1 means remove entry, 0 means do nothing.
+  /** Flag dor every entry with dual purpose:
+   * 1) Allocation phase: the entry is ORed with the directions, that are applicable (|= (1 << direction))
+   * 2) Garbage collection: 1 means remove entry, 0 means do nothing.
+   *
+   * After each phase the flags are cleared (set to 0)
+   *    1) collect_block_array.cu
+   *    2) recycle.cu
    */
   uchar     *flags_;
-
 };
 
 #endif //MESH_HASHING_ENTRY_ARRAY_H

@@ -21,22 +21,6 @@
 double UpdateBlocksSimple(
     EntryArray& candidate_entries,
     BlockArray& blocks,
-    size_t voxel_array_idx,
-    Sensor& sensor,
-    const RuntimeParams &runtime_params,
-    HashTable& hash_table,
-    GeometryHelper& geometry_helper
-);
-
-// @function Directional version of UpdateBlocksSimple
-// Enumerate @param candidate_entries
-// change the value of @param blocks
-// according to the existing @param mesh
-//                 and input @param sensor data
-// with the help of hash_table and geometry_helper
-double UpdateBlocksSimpleDirectional(
-    EntryArray& candidate_entries,
-    BlockArray& blocks,
     Sensor& sensor,
     const RuntimeParams &runtime_params,
     HashTable& hash_table,

@@ -381,9 +381,9 @@ static void VertexExtractionKernel(
   this_mesh_unit.mc_idx[0] = combined_mc_indices.x;
   this_mesh_unit.mc_idx[1] = combined_mc_indices.y;
 
-//  if ((voxel_pos.x >= 8 and voxel_pos.x <= 10) and
-//      (voxel_pos.y >= -1 and voxel_pos.y <= 0) and
-//      (voxel_pos.z >= -10 and voxel_pos.z <= -10))
+//  if ((voxel_pos.x >= 12 and voxel_pos.x <= 13) and
+//      (voxel_pos.y >= -2 and voxel_pos.y <= -1) and
+//      (voxel_pos.z >= 6 and voxel_pos.z <= 7))
 //  {
 //    printf("(%i, %i, %i) %i %i [%i, %i, %i, %i, %i, %i] -> [%i, %i, %i, %i, %i, %i]\n",
 //           voxel_pos.x, voxel_pos.y, voxel_pos.z,

@@ -125,65 +125,60 @@ void MainEngine::Mapping(Sensor &sensor)
   );
 
   double collect_time;
-//  collect_time = CollectBlocksInFrustum(
-//      hash_table_,
-//      sensor,
-//      geometry_helper_,
-//      candidate_entries_
-//  );
-  collect_time = CollectFlaggedBlocks(
-      hash_table_,
-      candidate_entries_
+  if (runtime_params_.update_type == UPDATE_TYPE_VOXEL_PROJECTION)
+  {
+    collect_time = CollectBlocksInFrustum(
+        hash_table_,
+        sensor,
+        geometry_helper_,
+        candidate_entries_
+    );
+  } else
+  {
+    collect_time = CollectFlaggedBlocks(
+        hash_table_,
+        candidate_entries_
+    );
+  }
+
+  alloc_time += AllocVoxelArray(
+      candidate_entries_,
+      blocks_,
+      sensor,
+      geometry_helper_,
+      runtime_params_
   );
 
 
-  size_t voxel_array_idx = 0;
 
   double update_time = 0;
-  if (runtime_params_.update_type == 0)
+  if (runtime_params_.update_type == UPDATE_TYPE_VOXEL_PROJECTION)
   {
-    if (runtime_params_.enable_directional_sdf)
-    {
-      update_time = UpdateBlocksSimpleDirectional(candidate_entries_,
-                                                  blocks_,
-                                                  sensor,
-                                                  runtime_params_,
-                                                  hash_table_,
-                                                  geometry_helper_);
-    } else
-    {
-      update_time = UpdateBlocksSimple(candidate_entries_,
-                                       blocks_,
-                                       voxel_array_idx,
-                                       sensor,
-                                       runtime_params_,
-                                       hash_table_,
-                                       geometry_helper_);
-    }
+    update_time = UpdateBlocksSimple(candidate_entries_,
+                                     blocks_,
+                                     sensor,
+                                     runtime_params_,
+                                     hash_table_,
+                                     geometry_helper_);
     LOG(INFO) << "Simple update: " << update_time;
 
-    log_engine_.WriteMappingTimeStamp(
-        alloc_time,
-        collect_time,
-        update_time,
-        integrated_frame_count_);
-  } else if (runtime_params_.update_type >= 1)
+  } else if (runtime_params_.update_type == UPDATE_TYPE_RAYCASTING)
   {
     update_time = UpdateRaycasting(candidate_entries_,
                                    blocks_,
-                                   voxel_array_idx,
                                    sensor,
                                    runtime_params_,
                                    hash_table_,
                                    geometry_helper_);
 
     LOG(INFO) << "Ray casting update: " << update_time;
-    log_engine_.WriteMappingTimeStamp(
-        alloc_time,
-        collect_time,
-        update_time,
-        integrated_frame_count_);
   }
+
+  log_engine_.WriteMappingTimeStamp(
+      alloc_time,
+      collect_time,
+      update_time,
+      integrated_frame_count_);
 
   integrated_frame_count_++;
 }

@@ -8,23 +8,32 @@
 #include "core/common.h"
 #include "helper_math.h"
 
-struct __ALIGN__(8) HashEntry {
-  int3	pos;		   // block position (lower left corner of SDFBlock))
-  int		ptr;	     // pointer into heap to SDFBlock
-  uint	offset;		 // offset for linked lists
+struct __ALIGN__(8) HashEntry
+{
+  /** block position (lower left corner of SDFBlock)) */
+  int3 pos;
+  /** pointer into heap to SDFBlock */
+  int ptr;
+  /** offset for linked lists */
+  uint offset;
+  /** Flags for direction allocation */
+  uchar direction_flags;
 
   __device__
-  void operator=(const struct HashEntry& e) {
-    ((long long*)this)[0] = ((const long long*)&e)[0];
-    ((long long*)this)[1] = ((const long long*)&e)[1];
-    ((int*)this)[4]       = ((const int*)&e)[4];
+  void operator=(const struct HashEntry &e)
+  {
+    ((long long *) this)[0] = ((const long long *) &e)[0];
+    ((long long *) this)[1] = ((const long long *) &e)[1];
+    ((int *) this)[4] = ((const int *) &e)[4];
   }
 
   __device__
-  void Clear() {
-    pos    = make_int3(0);
-    ptr    = FREE_ENTRY;
+  void Clear()
+  {
+    pos = make_int3(0);
+    ptr = FREE_ENTRY;
     offset = 0;
+    direction_flags = 0;
   }
 };
 

@@ -19,15 +19,15 @@ __global__
 void UpdateBlocksSimpleKernel(
     EntryArray candidate_entries,
     BlockArray blocks,
-    const size_t voxel_array_idx,
     SensorData sensor_data,
     SensorParams sensor_params,
     float4x4 cTw,
     bool enable_point_to_plane,
-    HashTable hash_table,
     GeometryHelper geometry_helper
 )
 {
+  const size_t voxel_array_idx = 0;
+
   //TODO check if we should load this in shared memory (candidate_entries)
   /// 1. Select voxel
   const HashEntry &entry = candidate_entries[blockIdx.x];
@@ -112,7 +112,6 @@ void UpdateBlocksSimpleKernelDirectional(
     float4x4 cTw,
     float4x4 wTc,
     bool enable_point_to_plane,
-    HashTable hash_table,
     GeometryHelper geometry_helper
 )
 {
@@ -137,7 +136,7 @@ void UpdateBlocksSimpleKernelDirectional(
 
   /// 3. Find correspondent depth observation
   float4 normal = tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y);
-  normal.w = 1;
+  normal.w = 0;
   if (not IsValidNormal(normal))
   { // No normal value for this coordinate
     return;
@@ -178,11 +177,7 @@ void UpdateBlocksSimpleKernelDirectional(
   }
 
   /// 4. Find TSDF direction and Update
-  float4x4 wTcRotOnly = wTc;
-  wTcRotOnly.m14 = 0;
-  wTcRotOnly.m24 = 0;
-  wTcRotOnly.m34 = 0;
-  float4 normal_world = wTcRotOnly * normal;
+  float4 normal_world = wTc * normal;
 
   float weights[N_DIRECTIONS];
   ComputeDirectionWeights(normal_world, weights);
@@ -195,12 +190,6 @@ void UpdateBlocksSimpleKernelDirectional(
     Voxel delta;
     delta.sdf = sdf;
     delta.inv_sigma2 = inv_sigma2 * weights[direction]; // additionally weight by normal-direction-compliance
-
-    if (voxel_pos.x == 9 and voxel_pos.y == 0 and voxel_pos.z == 0
-        and direction == static_cast<size_t>(TSDFDirection::LEFT))
-    {
-      printf("%i %i -> %f\n", image_pos.x, image_pos.y, sdf);
-    }
 
     if (sensor_data.color_data)
     {
@@ -217,7 +206,6 @@ void UpdateBlocksSimpleKernelDirectional(
 double UpdateBlocksSimple(
     EntryArray &candidate_entries,
     BlockArray &blocks,
-    const size_t voxel_array_idx,
     Sensor &sensor,
     const RuntimeParams &runtime_params,
     HashTable &hash_table,
@@ -232,93 +220,34 @@ double UpdateBlocksSimple(
   if (candidate_entry_count <= 0)
     return timer.Tock();
 
-  // 1) Make sure VoxelArrays are allocated
-  const dim3 num_blocks(static_cast<unsigned int>(
-                            std::ceil(candidate_entry_count / static_cast<double>(CUDA_THREADS_PER_BLOCK))));
-  const dim3 num_threads(CUDA_THREADS_PER_BLOCK);
-  AllocateVoxelArrayKernel << < num_blocks, num_threads >> > (
-      candidate_entries,
-          candidate_entry_count,
-          blocks
-  );
-  checkCudaErrors(cudaDeviceSynchronize());
-  checkCudaErrors(cudaGetLastError());
-
   const uint threads_per_block = BLOCK_SIZE;
   const dim3 grid_size(candidate_entry_count, 1);
   const dim3 block_size(threads_per_block, 1);
 
-  // 2) Update blocks
-  UpdateBlocksSimpleKernel << < grid_size, block_size >> > (
-      candidate_entries,
-          blocks,
-          voxel_array_idx,
-          sensor.data(),
-          sensor.sensor_params(),
-          sensor.cTw(),
-          runtime_params.enable_point_to_plane,
-          hash_table,
-          geometry_helper);
-  checkCudaErrors(cudaDeviceSynchronize());
-  checkCudaErrors(cudaGetLastError());
-  return timer.Tock();
-}
+  if (runtime_params.enable_directional_sdf)
+  {
+    UpdateBlocksSimpleKernelDirectional << < grid_size, block_size >> > (
+        candidate_entries,
+            blocks,
+            sensor.data(),
+            sensor.sensor_params(),
+            sensor.cTw(),
+            sensor.wTc(),
+            runtime_params.enable_point_to_plane,
+            geometry_helper);
 
-double UpdateBlocksSimpleDirectional(
-    EntryArray &candidate_entries,
-    BlockArray &blocks,
-    Sensor &sensor,
-    const RuntimeParams &runtime_params,
-    HashTable &hash_table,
-    GeometryHelper &geometry_helper
-)
-{
-  Timer timer;
-  timer.Tick();
+  } else
+  {
+    UpdateBlocksSimpleKernel << < grid_size, block_size >> > (
+        candidate_entries,
+            blocks,
+            sensor.data(),
+            sensor.sensor_params(),
+            sensor.cTw(),
+            runtime_params.enable_point_to_plane,
+            geometry_helper);
 
-  uint candidate_entry_count = candidate_entries.count();
-  if (candidate_entry_count <= 0)
-    return timer.Tock();
-
-  // 1) Make sure VoxelArrays are allocated
-  const dim3 num_blocks(static_cast<unsigned int>(
-                            std::ceil(candidate_entry_count / static_cast<double>(CUDA_THREADS_PER_BLOCK))));
-  const dim3 num_threads(CUDA_THREADS_PER_BLOCK);
-  AllocateVoxelArrayKernelDirectional << < num_blocks, num_threads >> > (
-      candidate_entries,
-          candidate_entry_count,
-          blocks,
-          sensor.data(),
-          sensor.sensor_params(),
-          sensor.cTw(),
-          sensor.wTc(),
-          geometry_helper
-  );
-  checkCudaErrors(cudaDeviceSynchronize());
-  checkCudaErrors(cudaGetLastError());
-
-  const uint threads_per_block = BLOCK_SIZE;
-  const dim3 grid_size(candidate_entry_count, 1);
-  const dim3 block_size(threads_per_block, 1);
-
-  // Save debug image
-//  static uint counter = 0;
-//  std::stringstream ss;
-//  ss << "/tmp/decision/decision" << std::setfill('0') << std::setw(4) << counter << ".png";
-//  SaveDirectionDecisionImage(ss.str(), sensor);
-//  counter +=1;
-
-  // 2) Update blocks
-  UpdateBlocksSimpleKernelDirectional << < grid_size, block_size >> > (
-      candidate_entries,
-          blocks,
-          sensor.data(),
-          sensor.sensor_params(),
-          sensor.cTw(),
-          sensor.wTc(),
-          runtime_params.enable_point_to_plane,
-          hash_table,
-          geometry_helper);
+  }
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());
   return timer.Tock();

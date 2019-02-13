@@ -15,12 +15,14 @@
 // with the help of @param geometry_helper
 /**
  * Check which blocks are affected by the current sensor readings and allocate new blocks, if necessary.
+ * Also sets flags in the candidate_entries array for collecting blocks which are affected by the update.
  *
  * @param hash_table
  * @param sensor
  * @param runtime_params
  * @param geometry_helper
- * @return
+ * @param candidate_entries
+ * @return Runtime in s
  */
 double AllocBlockArray(
     HashTable &hash_table,
@@ -30,37 +32,17 @@ double AllocBlockArray(
     EntryArray candidate_entries
 );
 
-/** Allocates the first Voxel Arrays for every given Block
+/**
+ * Allocates the Voxel arrays for the candidate entries, if necessary
+ * @param candidate_entries
+ * @param blocks
+ * @param runtime_params
+ * @return Runtime in s
  */
-__global__
-void AllocateVoxelArrayKernel(
+double AllocVoxelArray(
     EntryArray candidate_entries,
-    uint num_entries,
-    BlockArray blocks
-);
-
-/** Allocates Voxel Arrays for the given Blocks with respect to the input normal map.
- */
-__global__
-void AllocateVoxelArrayKernelDirectional(
-    EntryArray candidate_entries,
-    uint num_entries,
     BlockArray blocks,
-    SensorData sensor_data,
-    SensorParams sensor_params,
-    float4x4 cTw,
-    float4x4 wTc,
-    GeometryHelper geometry_helper
-);
-
-__global__
-void AllocateVoxelArrayRaycastingKernel(
-    HashTable hash_table,
-    BlockArray blocks,
-    SensorData sensor_data,
-    SensorParams sensor_params,
-    float4x4 wTc,
-    GeometryHelper geometry_helper,
-    bool allocate_along_normal,
-    bool allocate_directional
+    Sensor &sensor,
+    GeometryHelper &geometry_helper,
+    RuntimeParams &runtime_params
 );

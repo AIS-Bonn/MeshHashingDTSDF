@@ -34,7 +34,9 @@ typedef signed char schar;
 #define __ALIGN__(n)  __align__(n)
 #else
 #define __ALIGN__(n) __attribute__((aligned(n)))
+
 #include <cuda_runtime.h>
+
 #endif
 
 #define __int_as_float(n) float(int(n))
@@ -65,6 +67,20 @@ typedef signed char schar;
 const size_t N_DIRECTIONS = 6;
 
 const uint CUDA_THREADS_PER_BLOCK = 256;
+
+enum UpdateType
+{
+  UPDATE_TYPE_VOXEL_PROJECTION = 0,
+  UPDATE_TYPE_RAYCASTING = 1
+
+};
+
+enum RayDirection
+{
+  RAY_DIRECTION_CAMERA = 0,
+  RAY_DIRECTION_NORMAL = 1,
+  RAY_DIRECTION_POS_CAMERA_NEG_NORMAL = 2
+};
 
 //#define STATS
 

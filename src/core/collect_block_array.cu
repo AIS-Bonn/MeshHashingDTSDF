@@ -62,7 +62,11 @@ void CollectBlocksInFrustumKernel(
   {
     const uint addr = addr_global + addr_local;
     candidate_entries[addr] = hash_table.entry(idx);
+    candidate_entries[addr].direction_flags = candidate_entries.flag(idx);
   }
+
+  if (idx < hash_table.entry_count)
+    candidate_entries.flag(idx) = 0; // Reset before recycle step
 }
 
 __global__
@@ -98,7 +102,11 @@ void CollectAllBlocksKernel(
   {
     const uint addr = addr_global + addr_local;
     candidate_entries[addr] = hash_table.entry(idx);
+    candidate_entries[addr].direction_flags = candidate_entries.flag(idx);
   }
+
+  if (idx < hash_table.entry_count)
+    candidate_entries.flag(idx) = 0; // Reset before recycle step
 }
 
 __global__
@@ -136,9 +144,10 @@ void CollectFlaggedBlocksKernel(
   {
     const uint addr = addr_global + addr_local;
     candidate_entries[addr] = hash_table.entry(idx);
+    candidate_entries[addr].direction_flags = candidate_entries.flag(idx);
   }
 
-  candidate_entries.flag(idx) = 0; // Reset for recycle step
+  candidate_entries.flag(idx) = 0; // Reset before recycle step
 }
 
 ////////////////////

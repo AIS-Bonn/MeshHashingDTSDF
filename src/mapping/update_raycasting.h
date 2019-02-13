@@ -9,7 +9,6 @@
 double UpdateRaycasting(
     EntryArray& candidate_entries,
     BlockArray& blocks,
-    size_t voxel_array_idx,
     Sensor& sensor,
     const RuntimeParams &runtime_params,
     HashTable& hash_table,

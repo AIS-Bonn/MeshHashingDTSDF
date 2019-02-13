@@ -9,14 +9,9 @@
 /// Device code
 ////////////////////
 
-#define RAY_DIRECTION_CAMERA 0
-#define RAY_DIRECTION_NORMAL 1
-#define RAY_DIRECTION_POS_CAMERA_NEG_NORMAL 2
-
 __global__
 void UpdateRaycastingKernel(
     BlockArray blocks,
-    const size_t voxel_array_idx,
     SensorData sensor_data,
     SensorParams sensor_params,
     float4x4 cTw,
@@ -27,6 +22,8 @@ void UpdateRaycastingKernel(
     GeometryHelper geometry_helper
 )
 {
+  const size_t voxel_array_idx = 0;
+
   // Pixel coordinates
   const int ux = blockIdx.x * blockDim.x + threadIdx.x;
   const int uy = blockIdx.y * blockDim.y + threadIdx.y;
@@ -159,7 +156,6 @@ void UpdateRaycastedBlocksKernel(
 double UpdateRaycasting(
     EntryArray &candidate_entries,
     BlockArray &blocks,
-    size_t voxel_array_idx,
     Sensor &sensor,
     const RuntimeParams &runtime_params,
     HashTable &hash_table,
@@ -173,38 +169,13 @@ double UpdateRaycasting(
   if (candidate_entry_count <= 0)
     return timer.Tock();
 
-  // 1) Make sure VoxelArrays are allocated
-  const dim3 num_blocks_alloc(static_cast<unsigned int>(
-                                  std::ceil(candidate_entry_count / static_cast<double>(CUDA_THREADS_PER_BLOCK))));
-  const dim3 num_threads_alloc(CUDA_THREADS_PER_BLOCK);
-//  AllocateVoxelArrayKernel << < num_blocks_alloc, num_threads_alloc >> > (
-//      candidate_entries,
-//          candidate_entry_count,
-//          blocks
-//  );
-//  checkCudaErrors(cudaDeviceSynchronize());
-//  checkCudaErrors(cudaGetLastError());
-
-  // 2) Fuse depth data
+  // 1) Fuse depth data
   const int threads_per_direction = 16;
   const dim3 grid_size_fusion((sensor.width() + threads_per_direction - 1) / threads_per_direction,
                               (sensor.height() + threads_per_direction - 1) / threads_per_direction);
   const dim3 block_size_fusion(threads_per_direction, threads_per_direction);
-  AllocateVoxelArrayRaycastingKernel << < grid_size_fusion, block_size_fusion >> > (
-      hash_table,
-          blocks,
-          sensor.data(),
-          sensor.sensor_params(),
-          sensor.wTc(),
-          geometry_helper,
-          runtime_params.raycasting_mode == RAY_DIRECTION_NORMAL,
-          runtime_params.enable_directional_sdf);
-  checkCudaErrors(cudaDeviceSynchronize());
-  checkCudaErrors(cudaGetLastError());
-
   UpdateRaycastingKernel << < grid_size_fusion, block_size_fusion >> > (
       blocks,
-          voxel_array_idx,
           sensor.data(),
           sensor.sensor_params(),
           sensor.cTw(),
@@ -216,7 +187,10 @@ double UpdateRaycasting(
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());
 
-  // 3) Update SDF with fused values
+  // 2) Update SDF with fused values
+  const dim3 num_blocks_alloc(static_cast<unsigned int>(
+                                  std::ceil(candidate_entry_count / static_cast<double>(CUDA_THREADS_PER_BLOCK))));
+  const dim3 num_threads_alloc(CUDA_THREADS_PER_BLOCK);
   UpdateRaycastedBlocksKernel << < num_blocks_alloc, num_threads_alloc >> > (
       candidate_entries,
           candidate_entry_count,
