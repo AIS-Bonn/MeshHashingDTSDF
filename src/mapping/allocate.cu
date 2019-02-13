@@ -49,7 +49,7 @@ void AllocBlockArrayKernel(HashTable hash_table,
   float3 world_pos_start;
   float3 world_pos_end;
   float3 world_ray_dir;
-  float4 normal_world = wTc * normal_camera;
+  float3 normal_world = make_float3(wTc * normal_camera);
   if (allocate_along_normal)
   {
 
@@ -58,7 +58,7 @@ void AllocBlockArrayKernel(HashTable hash_table,
                                                                      sensor_params.cx, sensor_params.cy);
     float3 point_world_pos = wTc * point_camera_pos;
 
-    world_ray_dir = make_float3(normal_world);
+    world_ray_dir = normal_world;
 
     world_pos_start = point_world_pos - world_ray_dir * truncation;
   } else
@@ -195,7 +195,7 @@ void AllocateVoxelArrayKernelDirectional(
     wTcRotOnly.m14 = 0;
     wTcRotOnly.m24 = 0;
     wTcRotOnly.m34 = 0;
-    float4 normal_world = wTcRotOnly * normal;
+    float3 normal_world = make_float3(wTcRotOnly * normal);
 
     float weights[N_DIRECTIONS];
     ComputeDirectionWeights(normal_world, weights);

@@ -101,7 +101,7 @@ const char *TSDFDirectionToString(TSDFDirection direction)
   }
 }
 
-void ComputeDirectionWeights(const float4 &normal, float *weights)
+void ComputeDirectionWeights(const float3 &normal, float *weights)
 {
   const static float3 normal_directions[N_DIRECTIONS] = {
       {0,  1,  0},  // Up
@@ -111,10 +111,9 @@ void ComputeDirectionWeights(const float4 &normal, float *weights)
       {0,  0,  -1},  // Forward
       {0,  0,  1},  // Backward
   };
-  float3 vector_ = make_float3(normal);
   for (size_t i = 0; i < 3; i++)
   {
-    weights[2 * i] = dot(vector_, normal_directions[2 * i]);
+    weights[2 * i] = dot(normal, normal_directions[2 * i]);
     weights[2 * i + 1] = -weights[2 * i]; // opposite direction -> negative value
   }
 }

@@ -177,7 +177,7 @@ void UpdateBlocksSimpleKernelDirectional(
   }
 
   /// 4. Find TSDF direction and Update
-  float4 normal_world = wTc * normal;
+  float3 normal_world = make_float3(wTc * normal);
 
   float weights[N_DIRECTIONS];
   ComputeDirectionWeights(normal_world, weights);

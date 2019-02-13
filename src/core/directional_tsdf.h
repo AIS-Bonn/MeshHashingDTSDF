@@ -34,7 +34,7 @@ const char *TSDFDirectionToString(TSDFDirection direction);
  * @param weights
  */
 __host__ __device__
-void ComputeDirectionWeights(const float4 &normal, float weights[N_DIRECTIONS]);
+void ComputeDirectionWeights(const float3 &normal, float weights[N_DIRECTIONS]);
 
 __device__
 short FilterMCIndexDirection(const short mc_index, const TSDFDirection direction, const float sdf[8]);
