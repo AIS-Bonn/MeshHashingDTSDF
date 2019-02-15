@@ -190,7 +190,6 @@ bool HashTable::FreeEntry(const int3& pos) {
     uint i = j + bucket_first_entry_idx;
     const HashEntry& curr = entries_[i];
     if (IsPosAllocated(pos, curr)) {
-
 #ifndef HANDLE_COLLISIONS
       Free(curr.ptr);
         entries_[i].Clear();
@@ -200,18 +199,17 @@ bool HashTable::FreeEntry(const int3& pos) {
       if (curr.offset != 0) {
         int lock = atomicExch(&bucket_mutexes_[bucket_idx], LOCK_ENTRY);
         if (lock != LOCK_ENTRY) {
-          Free(curr.ptr);
+          // FIXME: This is not thread-safe (possible race condition with IsPosAllocated comparison above)!
           int next_idx = (i + curr.offset) % (entry_count);
           entries_[i] = entries_[next_idx];
           entries_[next_idx].Clear();
-          return true;
+          return Free(curr.ptr);
         } else {
           return false;
         }
       } else {
-        Free(curr.ptr);
-        entries_[i].Clear();
-        return true;
+        uint ptr = atomicExch(&entries_[i].ptr, FREE_ENTRY);
+        return Free(ptr);
       }
 #endif
     }
@@ -233,12 +231,11 @@ bool HashTable::FreeEntry(const int3& pos) {
     if (IsPosAllocated(pos, curr)) {
       int lock = atomicExch(&bucket_mutexes_[bucket_idx], LOCK_ENTRY);
       if (lock != LOCK_ENTRY) {
-        Free(curr.ptr);
-        entries_[i].Clear();
+        uint ptr = atomicExch(&entries_[i].ptr, FREE_ENTRY);
         HashEntry prev = entries_[prev_idx];
         prev.offset = curr.offset;
         entries_[prev_idx] = prev;
-        return true;
+        return Free(ptr);
       } else {
         return false;
       }
@@ -283,9 +280,12 @@ __device__ uint HashTable::Alloc() {
   return heap_[addr];
 }
 
-__device__ void HashTable::Free(uint ptr) {
+__device__ bool HashTable::Free(uint ptr) {
+  if (ptr == FREE_ENTRY)
+    return false;
   uint addr = atomicAdd(&heap_counter_[0], 1);
   heap_[addr + 1] = ptr;
+  return true;
 }
 
 ////////////////////

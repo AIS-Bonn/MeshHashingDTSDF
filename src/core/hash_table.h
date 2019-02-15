@@ -58,7 +58,7 @@ private:
 
   __device__ uint Alloc();
 
-  __device__ void Free(uint ptr);
+  __device__ bool Free(uint ptr);
 
 public:
   __device__ HashEntry GetEntry(const int3& pos) const;
