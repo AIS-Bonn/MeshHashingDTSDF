@@ -31,8 +31,8 @@ inline void UpdateVoxel(
 
   if (not blocks.HasVoxelArray(hash_table.GetEntry(block_idx).ptr, voxel_array_idx))
   {
-//      printf("(%i, %i, %i) ", voxel_idx.x, voxel_idx.y, voxel_idx.z);
-    return; // TODO: throw warning. This should have been allocated beforehand.
+    printf("(%i, %i, %i) ", voxel_idx.x, voxel_idx.y, voxel_idx.z);
+    return;
   }
   Voxel &voxel = blocks.GetVoxelArray(hash_table.GetEntry(block_idx).ptr, voxel_array_idx).voxels[local_idx];
 
@@ -148,6 +148,7 @@ void UpdateRaycastingKernel(
       {
         if (directional_weights[direction] > direction_weight_threshold)
         {
+
           UpdateVoxel(
               voxel_idx,
               direction,
@@ -212,7 +213,7 @@ void UpdateRaycastedBlocksKernel(
   {
     if (not blocks.HasVoxelArray(entry.ptr, direction))
     {
-      return;
+      continue;
     }
     VoxelArray &voxel_array = blocks.GetVoxelArray(entry.ptr, direction);
     for (size_t i = 0; i < BLOCK_SIZE; i++)

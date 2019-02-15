@@ -33,7 +33,9 @@ struct __ALIGN__(4) MeshUnit {
 
   __host__ __device__
   void ResetMutexes() {
+#ifdef __CUDA_ARCH__
 #pragma unroll 1
+#endif
     for (uint i = 0; i < N_VERTEX; i++)
     {
       vertex_mutexes[i] = FREE_PTR;
