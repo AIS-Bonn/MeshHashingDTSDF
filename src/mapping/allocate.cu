@@ -83,16 +83,16 @@ void AllocBlockArrayKernel(HashTable hash_table,
   float directional_weights[N_DIRECTIONS];
   ComputeDirectionWeights(normal_world, directional_weights);
 
-  BlockTraversal block_traversal(
+  BlockTraversal voxel_traversal(
       world_pos_start,
       world_ray_dir,
       2 * truncation, // 2 * truncation, because it covers both positive and negative range
-      geometry_helper.voxel_size * BLOCK_SIDE_LENGTH,
-      false // switch of rounding to nearest corner, allocate CONTAINING block
+      geometry_helper.voxel_size
   );
-  while (block_traversal.HasNextBlock())
+  while (voxel_traversal.HasNextBlock())
   {
-    int3 block_idx = block_traversal.GetNextBlock();
+    int3 voxel_idx = voxel_traversal.GetNextBlock();
+    int3 block_idx = geometry_helper.VoxelToBlock(voxel_idx);
     hash_table.AllocEntry(block_idx);
 
     // Flag the corresponding hash entry
