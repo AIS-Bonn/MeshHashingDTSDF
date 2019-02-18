@@ -116,7 +116,6 @@ void BilateralFilterKernel(float4 *input, float4 *output, float sigma_d, float s
   const uint idx = uy * width + ux;
 
   output[idx] = make_float4(MINF);
-  output[idx] = make_float4(42.0);
 
   const float4 center = input[idx];
   if (center.x == MINF or center.y == MINF or center.z == MINF or center.w == MINF)
@@ -139,6 +138,61 @@ void BilateralFilterKernel(float4 *input, float4 *output, float sigma_d, float s
         continue;
 
       const float weight = gaussD(sigma_d, i - ux, j - uy) * gaussR(sigma_r, length(value - center));
+
+      sum += weight * value;
+      sum_weight += weight;
+    }
+  }
+
+  if (sum_weight >= 0.0f)
+  {
+    output[idx] = sum / sum_weight;
+  }
+}
+
+/**
+ * Implementation from BundleFusion
+ * Copyright (c) 2017 by Angela Dai and Matthias Niessner
+ *
+ * @param input
+ * @param output
+ * @param sigma_d
+ * @param sigma_r
+ */
+__global__
+void BilateralFilterKernelFloat(float *input, float *output, float sigma_d, float sigma_r, uint width, uint height)
+{
+  const int ux = blockIdx.x * blockDim.x + threadIdx.x;
+  const int uy = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (ux >= width or uy >= height)
+    return;
+
+  const uint idx = uy * width + ux;
+
+  output[idx] = MINF;
+
+  const float center = input[idx];
+  if (center == MINF)
+    return;
+
+  float sum = 0.0f;
+  float sum_weight = 0.0f;
+
+  const uint radius = (uint) ceil(2.0 * sigma_d);
+  for (int i = ux - radius; i <= ux + radius; i++)
+  {
+    for (int j = uy - radius; j <= uy + radius; j++)
+    {
+      if (i < 0 or j < 0 or i >= width or j >= height)
+        continue;
+
+      const float value = input[j * width + i];
+
+      if (value == MINF)
+        continue;
+
+      const float weight = gaussD(sigma_d, i - ux, j - uy) * gaussR(sigma_r, abs(value - center));
 
       sum += weight * value;
       sum_weight += weight;
@@ -246,6 +300,7 @@ void ConvertDepthFormat(
   const dim3 grid_size((width + threads_per_block - 1) / threads_per_block,
                        (height + threads_per_block - 1) / threads_per_block);
   const dim3 block_size(threads_per_block, threads_per_block);
+
   ConvertDepthFormatKernel << < grid_size, block_size >> > (
       depth_data,
           depth_buffer,
@@ -253,6 +308,25 @@ void ConvertDepthFormat(
           params.range_factor,
           params.min_depth_range,
           params.max_depth_range);
+
+//  float *depth_tmp;
+//  checkCudaErrors(cudaMalloc(&depth_tmp, sizeof(float) * width * height));
+//  ConvertDepthFormatKernel << < grid_size, block_size >> > (
+//      depth_tmp,
+//          depth_buffer,
+//          width, height,
+//          params.range_factor,
+//          params.min_depth_range,
+//          params.max_depth_range);
+//  BilateralFilterKernelFloat << < grid_size, block_size >> > (
+//      depth_tmp,
+//          depth_data,
+//          5,
+//          5,
+//          width,
+//          height
+//  );
+//  checkCudaErrors(cudaFree(depth_tmp));
 }
 
 __host__
