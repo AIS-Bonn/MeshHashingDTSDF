@@ -34,8 +34,9 @@ __device__
 inline float InterpolateSurfaceOffset(const float &v1, const float &v2,
                                              const float &isolevel)
 {
-  if (fabs(v1 - isolevel) < 0.008) return 0;
-  if (fabs(v2 - isolevel) < 0.008) return 1;
+  // Snap to corner
+//  if (fabs(v1 - isolevel) < 0.008) return 0;
+//  if (fabs(v2 - isolevel) < 0.008) return 1;
   return (isolevel - v1) / (v2 - v1);
 }
 
