@@ -15,19 +15,19 @@
 __global__
 void StarveOccupiedBlocksKernel(
     EntryArray candidate_entries,
-    BlockArray blocks
+    BlockArray blocks,
+    GeometryHelper geometry_helper
 )
 {
   const uint idx = blockIdx.x;
   const HashEntry &entry = candidate_entries[idx];
-  for (size_t i = 0; i < 6; i++)
+  for (size_t i = 0; i < N_DIRECTIONS; i++)
   {
     if (not blocks.HasVoxelArray(entry.ptr, i))
       continue;
     Voxel &voxel = blocks.GetVoxelArray(entry.ptr, i).voxels[threadIdx.x];
-    float inv_sigma2 = voxel.inv_sigma2;
-    inv_sigma2 = fmaxf(0, inv_sigma2 - 1.0f);
-    voxel.inv_sigma2 = inv_sigma2;
+    float ammount = powf(geometry_helper.voxel_size, 3);
+    voxel.inv_sigma2 = fmaxf(0, voxel.inv_sigma2 - ammount);
   }
 }
 
@@ -59,7 +59,7 @@ void CollectGarbageBlockArrayKernel(
   // 1) Initialize shared memory: find min SDF and max inv_sigma2 for two voxels
   float min_sdf_thread = PINF;
   float max_inv_sigma2_thread = 0;
-  for (size_t i = 0; i < 6; i++)
+  for (size_t i = 0; i < N_DIRECTIONS; i++)
   {
     if (not blocks.HasVoxelArray(entry.ptr, i))
       continue;
@@ -97,12 +97,12 @@ void CollectGarbageBlockArrayKernel(
     float min_sdf = shared_min_sdf[tIdx];
     float max_inv_sigma2 = shared_max_inv_sigma2[tIdx];
 
-    // TODO(wei): check this weird reference
-    float t = geometry_helper.truncate_distance(5.0f);
+//    // TODO(wei): check this weird reference
+//    float t = geometry_helper.truncate_distance(5.0f);
 
     // TODO(wei): add || valid_triangles == 0 when memory leak is dealt with
-    candidate_entries.flag(bIdx) |=
-        (min_sdf >= t || max_inv_sigma2 < EPSILON) ? (uchar) 1 : (uchar) 0;
+    candidate_entries.flag(bIdx) |= max_inv_sigma2 < EPSILON ? (uchar) 1 : (uchar) 0;
+//    (min_sdf >= t || max_inv_sigma2 < EPSILON) ? (uchar) 1 : (uchar) 0;
   }
 }
 
@@ -237,7 +237,8 @@ void RecycleGarbageVerticesKernel(
 
 void StarveOccupiedBlockArray(
     EntryArray &candidate_entries,
-    BlockArray &blocks
+    BlockArray &blocks,
+    GeometryHelper& geometry_helper
 )
 {
   const uint threads_per_block = BLOCK_SIZE;
@@ -249,7 +250,7 @@ void StarveOccupiedBlockArray(
   const dim3 grid_size(processing_block_count, 1);
   const dim3 block_size(threads_per_block, 1);
 
-  StarveOccupiedBlocksKernel << < grid_size, block_size >> > (candidate_entries, blocks);
+  StarveOccupiedBlocksKernel << < grid_size, block_size >> > (candidate_entries, blocks, geometry_helper);
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());
 }

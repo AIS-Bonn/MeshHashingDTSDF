@@ -144,64 +144,6 @@ static short2 ComputeCombinedMCIndices(const short mc_indices[6])
   return {combined[0], combined[1]};
 }
 
-/**
- * Given a direction and a voxel position, fetches the SDF values of the corner points and
- * computes the MC index.
- *
- * @param entry
- * @param blocks
- * @param hash_table
- * @param geometry_helper
- * @param voxel_pos Voxel position
- * @param direction SDF direction
- * @param sdf_array Output array SDF values of 8 voxel corners
- * @param mc_index Output marching cubes index
- * @return
- */
-__device__
-static bool GetVoxelSDFValues(const HashEntry &entry, BlockArray &blocks,
-                              HashTable &hash_table, GeometryHelper &geometry_helper,
-                              int3 voxel_pos, TSDFDirection direction,
-                              float *sdf_array, short &mc_index)
-{
-  const float kVoxelSize = geometry_helper.voxel_size;
-  const float kThreshold = 4 * kVoxelSize;
-  const float kIsoLevel = 0;
-
-
-  mc_index = 0;
-  Voxel voxel_query;
-  for (int i = 0; i < 8; ++i)
-  {
-    if (not GetVoxelValue(entry, voxel_pos + kVtxOffset[i],
-                          blocks, static_cast<size_t>(direction), hash_table,
-                          geometry_helper, &voxel_query))
-    {
-      mc_index = -1;
-      return false;
-    }
-
-    sdf_array[i] = voxel_query.sdf;
-
-//    if (fabs(sdf_array[i]) > kThreshold)
-//    { // too far away from surface
-//      mc_index = -1;
-//      return false;
-//    }
-
-    float rho = voxel_query.a / (voxel_query.a + voxel_query.b);
-    if (rho < 0.1f or voxel_query.inv_sigma2 < squaref(1.0f / kVoxelSize) / 4)
-    { // too uncertain (small weight)
-      mc_index = -1;
-      return false;
-    }
-
-    mc_index |= (sdf_array[i] < kIsoLevel) * (1 << i);
-  }
-
-  return true;
-}
-
 __global__
 static void VertexExtractionKernel(
     EntryArray candidate_entries,
@@ -237,60 +179,63 @@ static void VertexExtractionKernel(
     p[i] = world_pos + kVoxelSize * make_float3(kVtxOffset[i]);
   }
 
-  // 1) Collect SDF values and MC indices for each direction
+  /// 1) Collect SDF values and MC indices for each direction
   short mc_indices[6];
   short mc_indices_[6];
   float sdf_arrays[6][8];
+  float sdf_weights[8];
   bool is_valid[6];
-  for (int direction = 0; direction < 6; direction++)
+  for (size_t direction = 0; direction < N_DIRECTIONS; direction++)
   {
     is_valid[direction] = GetVoxelSDFValues(entry, blocks, hash_table, geometry_helper,
-                                            voxel_pos, TSDFDirection(direction),
-                                            sdf_arrays[direction], mc_indices[direction]);
+                                            voxel_pos, direction,
+                                            sdf_arrays[direction], sdf_weights[direction],
+                                            mc_indices[direction]);
     mc_indices_[direction] = mc_indices[direction];
 
     mc_indices[direction] = FilterMCIndexDirection(mc_indices[direction], static_cast<TSDFDirection>(direction),
                                                    sdf_arrays[direction]);
   }
 
-  // 2) Check compatibility of each pair of mc indices to filter out wrong contours
+  /// 2) Check compatibility of each pair of mc indices to filter out wrong contours
   for (int direction = 0; direction < 6; direction++)
   {
     short &mc_index = mc_indices[direction];
     if (mc_index <= 0 or mc_index == 255)
       continue;
 
-    int support = 0;
+    float support_weight = 1.0f;
     for (int i = 0; i < N_DIRECTIONS; i++)
     {
-      // Only use directions, which are potentially compatible for exclusion
-      if (kIndexDirectionCompatibility[mc_index][i] == 0)
-        continue;
-
       if (mc_indices[i] < 0)
         continue;
+      // Only use directions, which are potentially compatible for exclusion
+//      if (kIndexDirectionCompatibility[mc_index][i] == 0)
+//        continue;
+
       if (mc_indices[i] == 0)
       { // If any of the compatible directions states, that voxel is in front of surface -> down-weight
-        support -= 1;
-        // Hard threshold:
-        mc_index = 0;
-        break;
+        support_weight -= sdf_weights[i] / sdf_weights[direction];
+//        // Hard threshold:
+//        mc_index = 0;
+//        break;
       } else if (i != direction and MCIndexCompatible(mc_index, mc_indices[i]))
       {
-        support += 1;
+        support_weight += sdf_weights[i] / sdf_weights[direction];
       }
     }
-    if (support < 0)
+    if (support_weight < 0)
     {
       mc_index = 0;
     }
   }
 
-  // 3) For every edge: find and intersect (directions) the up to 2 surface offsets (two possible directions)
+  /// 3) For every edge: find and intersect (directions) the up to 2 surface offsets (two possible directions)
   const int kEdgeCount = 12;
   for (int i = 0; i < kEdgeCount; ++i)
   {
-    float2 surface_offsets = make_float2(MINF, MINF);
+    float2 surface_offsets = make_float2(0, 0);
+    float2 weight_sum = make_float2(0, 0);
     int2 edge_endpoint_vertices = kEdgeEndpointVertices[i];
 
     for (int direction = 0; direction < 6; direction++)
@@ -306,19 +251,27 @@ static void VertexExtractionKernel(
 
       float surface_offset = InterpolateSurfaceOffset(sdf[edge_endpoint_vertices.x],
                                                       sdf[edge_endpoint_vertices.y], kIsoLevel);
-
       if (mc_index & (1 << edge_endpoint_vertices.x))
       { // surface points towards first endpoint
-        surface_offsets.x = fmaxf(surface_offsets.x, surface_offset);
+        surface_offsets.x += sdf_weights[direction] * surface_offset;
+        weight_sum.x += sdf_weights[direction];
       } else
       { // surface points towards second endpoint
-        if (surface_offsets.y == MINF)
-        {
-          surface_offsets.y = surface_offset;
-        }
-        surface_offsets.y = -fmaxf(-surface_offsets.y, -surface_offset);
+        surface_offsets.y += sdf_weights[direction] * surface_offset;
+        weight_sum.y += sdf_weights[direction];
       }
     }
+
+    if (weight_sum.x > 0)
+      surface_offsets.x /= weight_sum.x;
+    else
+      surface_offsets.x = MINF;
+    if (weight_sum.y > 0)
+      surface_offsets.y /= weight_sum.y;
+    else
+      surface_offsets.y = MINF;
+
+
 
     // If edge is unaffected -> continue
     if (surface_offsets.x == MINF and surface_offsets.y == MINF)
@@ -372,21 +325,10 @@ static void VertexExtractionKernel(
     }
   }
 
-  // 4) Compute combined MC indices from all directions for triangle extraction
+  /// 4) Compute combined MC indices from all directions for triangle extraction
   short2 combined_mc_indices = ComputeCombinedMCIndices(mc_indices);
   this_mesh_unit.mc_idx[0] = combined_mc_indices.x;
   this_mesh_unit.mc_idx[1] = combined_mc_indices.y;
-
-//  if ((voxel_pos.x >= 12 and voxel_pos.x <= 13) and
-//      (voxel_pos.y >= -2 and voxel_pos.y <= -1) and
-//      (voxel_pos.z >= 6 and voxel_pos.z <= 7))
-//  {
-//    printf("(%i, %i, %i) %i %i [%i, %i, %i, %i, %i, %i] -> [%i, %i, %i, %i, %i, %i]\n",
-//           voxel_pos.x, voxel_pos.y, voxel_pos.z,
-//           this_mesh_unit.mc_idx[0], this_mesh_unit.mc_idx[1],
-//           mc_indices_[0], mc_indices_[1], mc_indices_[2], mc_indices_[3], mc_indices_[4], mc_indices_[5],
-//           mc_indices[0], mc_indices[1], mc_indices[2], mc_indices[3], mc_indices[4], mc_indices[5]);
-//  }
 }
 
 

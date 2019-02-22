@@ -1,37 +1,56 @@
 %YAML:1.0
 
 #dataset_path:      "/home/splietke/datasets/TUM/fr3/long_office_household/"
-dataset_path:      "/home/splietke/projects/directionalTSDF/datasets/test_cube2/"
+#dataset_path:      "/home/splietke/projects/directionalTSDF/datasets/cuboid_03/"
+#dataset_path:      "/home/splietke/projects/directionalTSDF/datasets/sphere/"
+dataset_path:      "/home/splietke/projects/directionalTSDF/datasets/dragon/"
+#dataset_path:      "/home/splietke/projects/directionalTSDF/datasets/turbine_blade/"
 
 # Hash params
 bucket_count:      40000
 bucket_size:       10
 count:             400000
 linked_list_size:  7
-max_block_count:    100000
+max_block_count:    300000
 
 # SDF params
+#voxel_size:                0.005
+#sdf_upper_bound:           4.0
+#truncation_distance_scale: 0.000
+#truncation_distance:       0.010
+
 #voxel_size:                0.008
 #sdf_upper_bound:           4.0
-#truncation_distance_scale: 0.008
+#truncation_distance_scale: 0.000
 #truncation_distance:       0.032
+
+voxel_size:                0.01
+sdf_upper_bound:           4.0
+truncation_distance_scale: 0.00
+truncation_distance:       0.02
+
+#voxel_size:                0.02
+#sdf_upper_bound:           4.0
+#truncation_distance_scale: 0.00
+#truncation_distance:       0.04
 
 #voxel_size:                0.04
 #sdf_upper_bound:           4.0
-#truncation_distance_scale: 0.04
+#truncation_distance_scale: 0.00
 #truncation_distance:       0.08
 
-voxel_size:                0.05
-sdf_upper_bound:           5.0
-truncation_distance_scale: 0.025
-truncation_distance:       0.05
+#voxel_size:                0.05
+#sdf_upper_bound:           5.0
+#truncation_distance_scale: 0.00
+#truncation_distance:       0.10
 
 #voxel_size:                0.12
 #sdf_upper_bound:           4.0
-#truncation_distance_scale: 0.12
+#truncation_distance_scale: 0.00
 #truncation_distance:       0.24
 
-weight_sample:             30
+weight_sample:             1
+#weight_sample:             30
 weight_upper_bound:        255
 
 # Sensor params

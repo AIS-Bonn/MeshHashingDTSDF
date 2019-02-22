@@ -1,8 +1,9 @@
 #include "core/directional_tsdf.h"
 #include "core/functions.h"
 #include "mapping/allocate.h"
-#include "mapping/update_raycasting.h"
 #include "mapping/block_traversal.hpp"
+#include "mapping/update_raycasting.h"
+#include "mapping/weight_functions.h"
 #include "util/timer.h"
 #include "geometry/geometry_helper.h"
 
@@ -38,16 +39,11 @@ inline void UpdateVoxel(
 
   float3 voxel_pos_world = geometry_helper.VoxelToWorld(voxel_idx);
 
-//    float weight = fmaxf(10 * geometry_helper.weight_sample * (1.0f - normalized_depth), 1.0f);
-
-//    // linear voxel-observation-distance weight
-//    float weight = fmaxf(10 * geometry_helper.weight_sample * (1.0f - normalized_depth) *
-//                         length(point_world_pos - voxel_pos_world) / truncation_distance, 1.0f);
-  // linear voxel-observation-distance weight + normal angle
-  float weight = fmaxf(10 * geometry_helper.weight_sample * (1.0f - normalized_depth) *
-                       length(surface_point_world - voxel_pos_world) / truncation_distance *
-                       (2 - normal_camera.x + normal_camera.y),
-                       1.0f);
+  float weight = fmaxf(geometry_helper.weight_sample *
+                       weight_depth(normalized_depth) *
+                       weight_voxel_correlation(surface_point_world, voxel_pos_world, truncation_distance) *
+                       weight_normal_angle(make_float3(normal_camera)) *
+                       weight_direction_compliance(voxel_array_idx, normal_world), 1.0f);
 
   float3 observation_ray = voxel_pos_world - surface_point_world;
   float sdf;

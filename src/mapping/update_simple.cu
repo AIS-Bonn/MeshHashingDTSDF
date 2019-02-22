@@ -6,6 +6,7 @@
 #include "core/functions.h"
 #include "mapping/allocate.h"
 #include "mapping/update_simple.h"
+#include "mapping/weight_functions.h"
 #include "engine/main_engine.h"
 #include "sensor/rgbd_sensor.h"
 #include "geometry/spatial_query.h"
@@ -22,6 +23,7 @@ void UpdateBlocksSimpleKernel(
     SensorData sensor_data,
     SensorParams sensor_params,
     float4x4 cTw,
+    float4x4 wTc,
     bool enable_point_to_plane,
     GeometryHelper geometry_helper
 )
@@ -37,10 +39,10 @@ void UpdateBlocksSimpleKernel(
 
   Voxel &this_voxel = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[local_idx];
   /// 2. Project to camera
-  float3 voxel_world_pos = geometry_helper.VoxelToWorld(voxel_pos);
-  float3 voxel_camera_pos = cTw * voxel_world_pos;
+  float3 voxel_pos_world = geometry_helper.VoxelToWorld(voxel_pos);
+  float3 voxel_pos_camera = cTw * voxel_pos_world;
   uint2 image_pos = make_uint2(
-      geometry_helper.CameraProjectToImagei(voxel_camera_pos,
+      geometry_helper.CameraProjectToImagei(voxel_pos_camera,
                                             sensor_params.fx, sensor_params.fy,
                                             sensor_params.cx, sensor_params.cy));
   if (image_pos.x >= sensor_params.width
@@ -49,47 +51,47 @@ void UpdateBlocksSimpleKernel(
 
   /// 3. Find correspondent depth observation
   float depth = tex2D<float>(sensor_data.depth_texture, image_pos.x, image_pos.y);
-  if (not IsValidDepth(depth) or depth >= geometry_helper.sdf_upper_bound)
+  float3 normal_camera = make_float3(tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y));
+  if (not IsValidDepth(depth) or depth >= geometry_helper.sdf_upper_bound or not IsValidNormal(normal_camera))
     return;
+  float3 surface_point_camera = GeometryHelper::ImageReprojectToCamera(image_pos.x, image_pos.y, depth,
+                                                                       sensor_params.fx, sensor_params.fy,
+                                                                       sensor_params.cx, sensor_params.cy);
   float sdf;
   if (enable_point_to_plane)
   { // Use point-to-plane metric (Bylow2013 "Real-Time Camera Tracking and 3D Reconstruction Using Signed Distance Functions")
-    float3 normal = make_float3(tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y));
-    if (not IsValidNormal(normal))
-    { // No normal value for this coordinate
-      return;
-    }
 
-    float3 surface_point = GeometryHelper::ImageReprojectToCamera(image_pos.x, image_pos.y, depth,
-                                                                  sensor_params.fx, sensor_params.fy,
-                                                                  sensor_params.cx, sensor_params.cy);
-    sdf = dot(surface_point - voxel_camera_pos, -normal);
+    sdf = dot(surface_point_camera - voxel_pos_camera, -normal_camera);
   } else
   { // Use point-to-point metric
-    sdf = depth - voxel_camera_pos.z;
+    sdf = depth - voxel_pos_camera.z;
   }
   float normalized_depth = geometry_helper.NormalizeDepth(
       depth,
       sensor_params.min_depth_range,
       sensor_params.max_depth_range
   );
-  float inv_sigma2 = fmaxf(10 * geometry_helper.weight_sample * (1.0f - normalized_depth),
-                           1.0f);
-  float truncation = geometry_helper.truncate_distance(depth);
-  if (depth - voxel_camera_pos.z <= -truncation)
+  float truncation_distance = geometry_helper.truncate_distance(depth);
+  float3 surface_point_world = make_float3(wTc * make_float4(surface_point_camera, 1));
+  float weight = fmaxf(1e8 * powf(geometry_helper.voxel_size, 3) * geometry_helper.weight_sample *
+                       weight_depth(normalized_depth) *
+                       weight_voxel_correlation(surface_point_world, voxel_pos_world, truncation_distance) *
+                       weight_normal_angle(normal_camera),
+                       1.0f);
+  if (depth - voxel_pos_camera.z <= -truncation_distance)
     return;
   if (sdf >= 0.0f)
   {
-    sdf = fminf(truncation, sdf);
+    sdf = fminf(truncation_distance, sdf);
   } else
   {
-    sdf = fmaxf(-truncation, sdf);
+    sdf = fmaxf(-truncation_distance, sdf);
   }
 
   /// 5. Update
   Voxel delta;
   delta.sdf = sdf;
-  delta.inv_sigma2 = inv_sigma2;
+  delta.inv_sigma2 = weight;
 
   if (sensor_data.color_data)
   {
@@ -124,60 +126,63 @@ void UpdateBlocksSimpleKernelDirectional(
   int3 voxel_pos = voxel_base_pos + make_int3(geometry_helper.DevectorizeIndex(local_idx));
 
   /// 2. Project to camera
-  float3 world_pos = geometry_helper.VoxelToWorld(voxel_pos);
-  float3 camera_pos = cTw * world_pos;
-  uint2 image_pos = make_uint2(
-      geometry_helper.CameraProjectToImagei(camera_pos,
+  float3 voxel_pos_world = geometry_helper.VoxelToWorld(voxel_pos);
+  float3 voxel_pos_camera = cTw * voxel_pos_world;
+  uint2 voxel_pos_image = make_uint2(
+      geometry_helper.CameraProjectToImagei(voxel_pos_camera,
                                             sensor_params.fx, sensor_params.fy,
                                             sensor_params.cx, sensor_params.cy));
-  if (image_pos.x >= sensor_params.width
-      || image_pos.y >= sensor_params.height)
+  if (voxel_pos_image.x >= sensor_params.width
+      || voxel_pos_image.y >= sensor_params.height)
     return;
 
   /// 3. Find correspondent depth observation
-  float4 normal = tex2D<float4>(sensor_data.normal_texture, image_pos.x, image_pos.y);
-  normal.w = 0;
-  if (not IsValidNormal(normal))
+  float4 normal_camera = tex2D<float4>(sensor_data.normal_texture, voxel_pos_image.x, voxel_pos_image.y);
+  normal_camera.w = 0;
+  if (not IsValidNormal(normal_camera))
   { // No normal value for this coordinate
     return;
   }
 
-  float depth = tex2D<float>(sensor_data.depth_texture, image_pos.x, image_pos.y);
+  float depth = tex2D<float>(sensor_data.depth_texture, voxel_pos_image.x, voxel_pos_image.y);
   if (not IsValidDepth(depth) or depth >= geometry_helper.sdf_upper_bound)
     return;
+  float3 surface_point_camera = GeometryHelper::ImageReprojectToCamera(voxel_pos_image.x, voxel_pos_image.y, depth,
+                                                                       sensor_params.fx, sensor_params.fy,
+                                                                       sensor_params.cx, sensor_params.cy);
   float sdf;
   if (enable_point_to_plane)
   { // Use point-to-plane metric (Bylow2013 "Real-Time Camera Tracking and 3D Reconstruction Using Signed Distance Functions")
-    float3 normal_ = make_float3(normal);
-
-    float3 surface_point = GeometryHelper::ImageReprojectToCamera(image_pos.x, image_pos.y, depth,
-                                                                  sensor_params.fx, sensor_params.fy,
-                                                                  sensor_params.cx, sensor_params.cy);
-    sdf = dot(surface_point - camera_pos, -normal_);
+    float3 normal_ = make_float3(normal_camera);
+    sdf = dot(surface_point_camera - voxel_pos_camera, -normal_);
   } else
   { // Use point-to-point metric
-    sdf = depth - camera_pos.z;
+    sdf = depth - voxel_pos_camera.z;
   }
   float normalized_depth = geometry_helper.NormalizeDepth(
       depth,
       sensor_params.min_depth_range,
       sensor_params.max_depth_range
   );
-  float inv_sigma2 = fmaxf(10 * geometry_helper.weight_sample * (1.0f - normalized_depth),
-                           1.0f);
-  float truncation = geometry_helper.truncate_distance(depth);
-  if (depth - camera_pos.z <= -truncation)
+  float truncation_distance = geometry_helper.truncate_distance(depth);
+  float3 surface_point_world = make_float3(wTc * make_float4(surface_point_camera, 1));
+  float weight = fmaxf(1e7 * powf(geometry_helper.voxel_size, 3) * geometry_helper.weight_sample *
+                       weight_depth(normalized_depth) *
+                       weight_voxel_correlation(surface_point_world, voxel_pos_world, truncation_distance) *
+                       weight_normal_angle(make_float3(normal_camera)),
+                       1.0f);
+  if (depth - voxel_pos_camera.z <= -truncation_distance)
     return;
   if (sdf >= 0.0f)
   {
-    sdf = fminf(truncation, sdf);
+    sdf = fminf(truncation_distance, sdf);
   } else
   {
-    sdf = fmaxf(-truncation, sdf);
+    sdf = fmaxf(-truncation_distance, sdf);
   }
 
   /// 4. Find TSDF direction and Update
-  float3 normal_world = make_float3(wTc * normal);
+  float3 normal_world = make_float3(wTc * normal_camera);
 
   float weights[N_DIRECTIONS];
   ComputeDirectionWeights(normal_world, weights);
@@ -189,11 +194,11 @@ void UpdateBlocksSimpleKernelDirectional(
     Voxel &voxel = blocks.GetVoxelArray(entry.ptr, direction).voxels[local_idx];
     Voxel delta;
     delta.sdf = sdf;
-    delta.inv_sigma2 = inv_sigma2 * weights[direction]; // additionally weight by normal-direction-compliance
+    delta.inv_sigma2 = weight * weight_direction_compliance(direction, normal_world);
 
     if (sensor_data.color_data)
     {
-      float4 color = tex2D<float4>(sensor_data.color_texture, image_pos.x, image_pos.y);
+      float4 color = tex2D<float4>(sensor_data.color_texture, voxel_pos_image.x, voxel_pos_image.y);
       delta.color = make_uchar3(255 * color.x, 255 * color.y, 255 * color.z);
     } else
     {
@@ -244,6 +249,7 @@ double UpdateBlocksSimple(
             sensor.data(),
             sensor.sensor_params(),
             sensor.cTw(),
+            sensor.wTc(),
             runtime_params.enable_point_to_plane,
             geometry_helper);
 

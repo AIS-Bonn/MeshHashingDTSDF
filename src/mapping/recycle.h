@@ -17,7 +17,8 @@
 // operate over correspondent @param blocks
 void StarveOccupiedBlockArray(
     EntryArray& candidate_entries,
-    BlockArray& blocks
+    BlockArray& blocks,
+    GeometryHelper& geometry_helper
 );
 // @function
 // Enumerate @param candidate_entries

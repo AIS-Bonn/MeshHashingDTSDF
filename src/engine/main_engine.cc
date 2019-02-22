@@ -216,7 +216,9 @@ void MainEngine::Recycle()
   const static int kRecycleGap = 15;
   if (integrated_frame_count_ % kRecycleGap == kRecycleGap - 1)
   {
-    StarveOccupiedBlockArray(candidate_entries_, blocks_);
+    StarveOccupiedBlockArray(candidate_entries_,
+                             blocks_,
+                             geometry_helper_);
     CollectGarbageBlockArray(candidate_entries_,
                              blocks_,
                              geometry_helper_);
