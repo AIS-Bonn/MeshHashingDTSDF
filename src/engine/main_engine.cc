@@ -367,6 +367,9 @@ void MainEngine::FinalLog()
     for (size_t direction = 0; direction < N_DIRECTIONS; direction++)
     {
       LOG(INFO) << "Meshing direction: " << TSDFDirectionToString(TSDFDirection(direction));
+      ClearMesh(candidate_entries_,
+                blocks_,
+                mesh_);
       MarchingCubes(candidate_entries_,
                     blocks_,
                     direction,

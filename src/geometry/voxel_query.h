@@ -89,6 +89,7 @@ inline bool GetVoxelValue(
       return false;
     *voxel = blocks.GetVoxelArray(entry.ptr, voxel_array_idx).voxels[i];
   }
+
   return true;
 }
 

@@ -75,7 +75,7 @@ struct GeometryHelper
   }
 
   __host__ __device__
-  inline // no offset here: value is stored 90on the corner of a voxel
+  inline // no offset here: value is stored on the corner of a voxel
   float3 VoxelToWorld(const int3 voxel_pos)
   {
     return make_float3(voxel_pos) * voxel_size;

@@ -31,12 +31,12 @@ bool IsMCIndexDirectionCompatible(const short mc_index, const TSDFDirection dire
   // Table containing for each direction:
   // 4 opposite edge pairs, each of which is checked individually.
   const static size_t view_direction_edges_to_check[6][8] = {
-      {0, 4, 1, 5, 2,  6,  3,  7},
-      {4, 0, 5, 1, 6,  2,  7,  3},
-      {1, 3, 5, 7, 9,  8,  10, 11},
-      {3, 1, 7, 5, 8,  9,  11, 10},
-      {2, 0, 6, 4, 10, 9,  11, 8},
-      {0, 2, 4, 6, 8,  11, 9,  10}
+      {0, 4, 1, 5, 2,  6,  3,  7},  // Y_POS
+      {4, 0, 5, 1, 6,  2,  7,  3},  // Y_NEG
+      {1, 3, 5, 7, 9,  8,  10, 11}, // X_POS
+      {3, 1, 7, 5, 8,  9,  11, 10}, // X_NEG
+      {2, 0, 6, 4, 10, 9,  11, 8},  // Z_NEG
+      {0, 2, 4, 6, 8,  11, 9,  10}  // Z_POS
   };
   if (kIndexDirectionCompatibility[mc_index][static_cast<size_t>(direction)] == 0)
     return false;
@@ -77,6 +77,10 @@ bool IsMCIndexDirectionCompatible(const short mc_index, const TSDFDirection dire
       {
         return false;
       }
+//      if (fabs(opposite_offset - offset) < 0.5)
+//      {
+//        return false;
+//      }
     }
   }
   return true;
@@ -103,17 +107,9 @@ const char *TSDFDirectionToString(TSDFDirection direction)
 
 void ComputeDirectionWeights(const float3 &normal, float *weights)
 {
-  const static float3 normal_directions[N_DIRECTIONS] = {
-      {0,  1,  0},  // Up
-      {0,  -1, 0}, // Down
-      {1,  0,  0},  // Left
-      {-1, 0,  0},  // Right
-      {0,  0,  -1},  // Forward
-      {0,  0,  1},  // Backward
-  };
   for (size_t i = 0; i < 3; i++)
   {
-    weights[2 * i] = dot(normal, normal_directions[2 * i]);
+    weights[2 * i] = dot(normal, TSDFDirectionVectors[2 * i]);
     weights[2 * i + 1] = -weights[2 * i]; // opposite direction -> negative value
   }
 }

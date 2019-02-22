@@ -13,14 +13,23 @@ const static float direction_weight_threshold = 0.3826834323650898f; // approx o
 
 enum class TSDFDirection : std::uint8_t
 {
-  UP = 0,
-  DOWN,
-  LEFT,
-  RIGHT,
-  FORWARD,
-  BACKWARD
+  UP = 0,   // Y_POS
+  DOWN,     // Y_NEG
+  LEFT,     // X_POS
+  RIGHT,    // X_NEG
+  FORWARD,  // Z_NEG
+  BACKWARD  // Z_POS
 };
 
+__device__
+const static float3 TSDFDirectionVectors[N_DIRECTIONS] = {
+    {0,  1,  0},  // Y_POS
+    {0,  -1, 0},  // Y_NEG
+    {1,  0,  0},  // X_POS
+    {-1, 0,  0},  // X_NEG
+    {0,  0,  -1}, // Z_NEG
+    {0,  0,  1},  // Z_POS
+};
 
 __host__ __device__
 const char *TSDFDirectionToString(TSDFDirection direction);
