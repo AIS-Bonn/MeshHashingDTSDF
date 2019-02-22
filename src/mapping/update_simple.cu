@@ -4,6 +4,7 @@
 #include "core/block_array.h"
 #include "core/directional_tsdf.h"
 #include "core/functions.h"
+#include "engine/main_engine.h"
 #include "mapping/allocate.h"
 #include "mapping/update_simple.h"
 #include "mapping/weight_functions.h"
@@ -19,13 +20,13 @@
 __global__
 void UpdateBlocksSimpleKernel(
     EntryArray candidate_entries,
-    BlockArray blocks,
     SensorData sensor_data,
     SensorParams sensor_params,
     float4x4 cTw,
     float4x4 wTc,
-    bool enable_point_to_plane,
-    GeometryHelper geometry_helper
+    BlockArray blocks,
+    GeometryHelper geometry_helper,
+    bool enable_point_to_plane
 )
 {
   const size_t voxel_array_idx = 0;
@@ -106,15 +107,15 @@ void UpdateBlocksSimpleKernel(
 
 
 __global__
-void UpdateBlocksSimpleKernelDirectional(
+void UpdateBlocksSimpleDirectionalKernel(
     EntryArray candidate_entries,
-    BlockArray blocks,
     SensorData sensor_data,
     SensorParams sensor_params,
     float4x4 cTw,
     float4x4 wTc,
-    bool enable_point_to_plane,
-    GeometryHelper geometry_helper
+    BlockArray blocks,
+    GeometryHelper geometry_helper,
+    bool enable_point_to_plane
 )
 {
 
@@ -210,14 +211,10 @@ void UpdateBlocksSimpleKernelDirectional(
 
 double UpdateBlocksSimple(
     EntryArray &candidate_entries,
-    BlockArray &blocks,
     Sensor &sensor,
-    const RuntimeParams &runtime_params,
-    HashTable &hash_table,
-    GeometryHelper &geometry_helper
+    MainEngine &main_engine
 )
 {
-
   Timer timer;
   timer.Tick();
 
@@ -229,29 +226,29 @@ double UpdateBlocksSimple(
   const dim3 grid_size(candidate_entry_count, 1);
   const dim3 block_size(threads_per_block, 1);
 
-  if (runtime_params.enable_directional_sdf)
+  if (main_engine.runtime_params().enable_directional_sdf)
   {
-    UpdateBlocksSimpleKernelDirectional << < grid_size, block_size >> > (
+    UpdateBlocksSimpleDirectionalKernel << < grid_size, block_size >> > (
         candidate_entries,
-            blocks,
             sensor.data(),
             sensor.sensor_params(),
             sensor.cTw(),
             sensor.wTc(),
-            runtime_params.enable_point_to_plane,
-            geometry_helper);
+            main_engine.blocks(),
+            main_engine.geometry_helper(),
+            main_engine.runtime_params().enable_point_to_plane);
 
   } else
   {
     UpdateBlocksSimpleKernel << < grid_size, block_size >> > (
         candidate_entries,
-            blocks,
             sensor.data(),
             sensor.sensor_params(),
             sensor.cTw(),
             sensor.wTc(),
-            runtime_params.enable_point_to_plane,
-            geometry_helper);
+            main_engine.blocks(),
+            main_engine.geometry_helper(),
+            main_engine.runtime_params().enable_point_to_plane);
 
   }
   checkCudaErrors(cudaDeviceSynchronize());

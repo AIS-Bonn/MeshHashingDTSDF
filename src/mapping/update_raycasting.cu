@@ -1,5 +1,6 @@
 #include "core/directional_tsdf.h"
 #include "core/functions.h"
+#include "engine/main_engine.h"
 #include "mapping/allocate.h"
 #include "mapping/block_traversal.hpp"
 #include "mapping/update_raycasting.h"
@@ -70,11 +71,11 @@ inline void UpdateVoxel(
  */
 __global__
 void UpdateRaycastingKernel(
-    BlockArray blocks,
     SensorData sensor_data,
     SensorParams sensor_params,
-    RuntimeParams runtime_params,
     float4x4 wTc,
+    BlockArray blocks,
+    RuntimeParams runtime_params,
     HashTable hash_table,
     GeometryHelper geometry_helper
 )
@@ -298,13 +299,11 @@ void CollectUpdateStatisticsKernel(
 
 void CollectUpdateStatistics(
     EntryArray candidate_entries,
-    uint num_entries,
-    BlockArray blocks,
-    RuntimeParams runtime_params)
+    MainEngine &main_engine)
 {
-  static bool initialized = false;
-  VoxelUpdateStatistics *stats, *stats_cpu;
+  uint num_entries = candidate_entries.count();
 
+  VoxelUpdateStatistics *stats, *stats_cpu;
   checkCudaErrors(cudaMalloc(&stats, sizeof(VoxelUpdateStatistics) * num_entries));
   stats_cpu = (VoxelUpdateStatistics *) malloc(sizeof(VoxelUpdateStatistics) * num_entries);
 
@@ -314,8 +313,8 @@ void CollectUpdateStatistics(
   CollectUpdateStatisticsKernel << < num_blocks_alloc, num_threads_alloc >> > (
       candidate_entries,
           num_entries,
-          blocks,
-          runtime_params,
+          main_engine.blocks(),
+          main_engine.runtime_params(),
           stats);
   checkCudaErrors(
       cudaMemcpy(stats_cpu, stats, num_entries * sizeof(VoxelUpdateStatistics), cudaMemcpyDeviceToHost));
@@ -339,11 +338,8 @@ void CollectUpdateStatistics(
 
 double UpdateRaycasting(
     EntryArray &candidate_entries,
-    BlockArray &blocks,
     Sensor &sensor,
-    const RuntimeParams &runtime_params,
-    HashTable &hash_table,
-    GeometryHelper &geometry_helper
+    MainEngine &main_engine
 )
 {
   Timer timer;
@@ -359,17 +355,17 @@ double UpdateRaycasting(
                               (sensor.height() + threads_per_direction - 1) / threads_per_direction);
   const dim3 block_size_fusion(threads_per_direction, threads_per_direction);
   UpdateRaycastingKernel << < grid_size_fusion, block_size_fusion >> > (
-      blocks,
-          sensor.data(),
+      sensor.data(),
           sensor.sensor_params(),
-          runtime_params,
           sensor.wTc(),
-          hash_table,
-          geometry_helper);
+          main_engine.blocks(),
+          main_engine.runtime_params(),
+          main_engine.hash_table(),
+          main_engine.geometry_helper());
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());
 
-  CollectUpdateStatistics(candidate_entries, candidate_entry_count, blocks, runtime_params);
+  CollectUpdateStatistics(candidate_entries, main_engine);
 
   /// 2) Update SDF with fused values
   const dim3 num_blocks_alloc(static_cast<unsigned int>(
@@ -378,8 +374,8 @@ double UpdateRaycasting(
   UpdateRaycastedBlocksKernel << < num_blocks_alloc, num_threads_alloc >> > (
       candidate_entries,
           candidate_entry_count,
-          blocks,
-          runtime_params
+          main_engine.blocks(),
+          main_engine.runtime_params()
   );
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());

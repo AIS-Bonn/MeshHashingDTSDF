@@ -12,6 +12,8 @@
 #include "sensor/rgbd_sensor.h"
 #include "geometry/geometry_helper.h"
 
+class MainEngine;
+
 // @function
 // Enumerate @param candidate_entries
 // change the value of @param blocks
@@ -20,11 +22,8 @@
 // with the help of hash_table and geometry_helper
 double UpdateBlocksSimple(
     EntryArray& candidate_entries,
-    BlockArray& blocks,
     Sensor& sensor,
-    const RuntimeParams &runtime_params,
-    HashTable& hash_table,
-    GeometryHelper& geometry_helper
+    MainEngine &main_engine
 );
 
 #endif //MESH_HASHING_FUSE_H

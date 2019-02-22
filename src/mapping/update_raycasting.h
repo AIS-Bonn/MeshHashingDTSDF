@@ -6,11 +6,10 @@
 #include "sensor/rgbd_sensor.h"
 #include "geometry/geometry_helper.h"
 
+class MainEngine;
+
 double UpdateRaycasting(
-    EntryArray& candidate_entries,
-    BlockArray& blocks,
-    Sensor& sensor,
-    const RuntimeParams &runtime_params,
-    HashTable& hash_table,
-    GeometryHelper& geometry_helper
+    EntryArray &candidate_entries,
+    Sensor &sensor,
+    MainEngine &main_engine
 );

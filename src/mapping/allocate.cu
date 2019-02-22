@@ -4,6 +4,7 @@
 
 #include "core/directional_tsdf.h"
 #include "core/functions.h"
+#include "engine/main_engine.h"
 #include "mapping/allocate.h"
 #include "mapping/block_traversal.hpp"
 #include "util/timer.h"
@@ -20,13 +21,14 @@
  * @param allocate_along_normal Determines whether allocation is done along the view ray or in normal direction
  */
 __global__
-void AllocBlockArrayKernel(HashTable hash_table,
-                           SensorData sensor_data,
-                           SensorParams sensor_params,
-                           float4x4 wTc,
-                           GeometryHelper geometry_helper,
-                           EntryArray candidate_entries,
-                           bool allocate_along_normal)
+void AllocBlockArrayKernel(
+    EntryArray candidate_entries,
+    SensorData sensor_data,
+    SensorParams sensor_params,
+    float4x4 wTc,
+    HashTable hash_table,
+    GeometryHelper geometry_helper,
+    bool allocate_along_normal)
 {
 
   const uint x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -153,11 +155,11 @@ __global__
 void AllocateVoxelArrayKernelDirectional(
     EntryArray candidate_entries,
     uint num_entries,
-    BlockArray blocks,
     SensorData sensor_data,
     SensorParams sensor_params,
     float4x4 cTw,
     float4x4 wTc,
+    BlockArray blocks,
     GeometryHelper geometry_helper
 )
 {
@@ -216,16 +218,14 @@ void AllocateVoxelArrayKernelDirectional(
 }
 
 double AllocBlockArray(
-    HashTable &hash_table,
+    EntryArray candidate_entries,
     Sensor &sensor,
-    RuntimeParams &runtime_params,
-    GeometryHelper &geometry_helper,
-    EntryArray candidate_entries
+    MainEngine &main_engine
 )
 {
   Timer timer;
   timer.Tick();
-  hash_table.ResetMutexes();
+  main_engine.hash_table().ResetMutexes();
 
   const uint threads_per_block = 8;
   const dim3 grid_size((sensor.sensor_params().width + threads_per_block - 1)
@@ -234,12 +234,12 @@ double AllocBlockArray(
                        / threads_per_block);
   const dim3 block_size(threads_per_block, threads_per_block);
   AllocBlockArrayKernel << < grid_size, block_size >> > (
-      hash_table,
+      candidate_entries,
           sensor.data(),
           sensor.sensor_params(), sensor.wTc(),
-          geometry_helper,
-          candidate_entries,
-          runtime_params.raycasting_mode == 1
+          main_engine.hash_table(),
+          main_engine.geometry_helper(),
+          main_engine.runtime_params().raycasting_mode == 1
   );
 
   checkCudaErrors(cudaDeviceSynchronize());
@@ -249,10 +249,8 @@ double AllocBlockArray(
 
 double AllocVoxelArray(
     EntryArray candidate_entries,
-    BlockArray blocks,
     Sensor &sensor,
-    GeometryHelper &geometry_helper,
-    RuntimeParams &runtime_params
+    MainEngine &main_engine
 )
 {
   Timer timer;
@@ -261,25 +259,26 @@ double AllocVoxelArray(
   const dim3 grid_size(static_cast<unsigned int>(
                            std::ceil(candidate_entries.count() / static_cast<double>(CUDA_THREADS_PER_BLOCK))));
   const dim3 block_size(CUDA_THREADS_PER_BLOCK);
-  if (runtime_params.enable_directional_sdf and runtime_params.update_type == UPDATE_TYPE_VOXEL_PROJECTION)
+  if (main_engine.runtime_params().enable_directional_sdf and
+      main_engine.runtime_params().update_type == UPDATE_TYPE_VOXEL_PROJECTION)
   {
     AllocateVoxelArrayKernelDirectional << < grid_size, block_size >> > (
         candidate_entries,
             candidate_entries.count(),
-            blocks,
             sensor.data(),
             sensor.sensor_params(),
             sensor.cTw(),
             sensor.wTc(),
-            geometry_helper
+            main_engine.blocks(),
+            main_engine.geometry_helper()
     );
   } else
   {
     AllocateVoxelArrayKernel << < grid_size, block_size >> > (
         candidate_entries,
             candidate_entries.count(),
-            blocks,
-            runtime_params.enable_directional_sdf
+            main_engine.blocks(),
+            main_engine.runtime_params().enable_directional_sdf
     );
   }
 

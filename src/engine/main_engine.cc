@@ -116,11 +116,9 @@ void MainEngine::Localizing(Sensor &sensor, int iters, float4x4 &gt)
 void MainEngine::Mapping(Sensor &sensor)
 {
   double alloc_time = AllocBlockArray(
-      hash_table_,
+      candidate_entries_,
       sensor,
-      runtime_params_,
-      geometry_helper_,
-      candidate_entries_
+      *this
   );
 
   double collect_time;
@@ -142,10 +140,8 @@ void MainEngine::Mapping(Sensor &sensor)
 
   alloc_time += AllocVoxelArray(
       candidate_entries_,
-      blocks_,
       sensor,
-      geometry_helper_,
-      runtime_params_
+      *this
   );
 
 
@@ -153,21 +149,15 @@ void MainEngine::Mapping(Sensor &sensor)
   if (runtime_params_.update_type == UPDATE_TYPE_VOXEL_PROJECTION)
   {
     update_time = UpdateBlocksSimple(candidate_entries_,
-                                     blocks_,
                                      sensor,
-                                     runtime_params_,
-                                     hash_table_,
-                                     geometry_helper_);
+                                     *this);
     LOG(INFO) << "Simple update: " << update_time;
 
   } else if (runtime_params_.update_type == UPDATE_TYPE_RAYCASTING)
   {
     update_time = UpdateRaycasting(candidate_entries_,
-                                   blocks_,
                                    sensor,
-                                   runtime_params_,
-                                   hash_table_,
-                                   geometry_helper_);
+                                   *this);
 
     LOG(INFO) << "Ray casting update: " << update_time;
   }
@@ -519,4 +509,29 @@ void MainEngine::StoreBlocks(const std::string &prefix)
       blocks_.GetGPUPtr(), hash_params_.max_block_count,
       candidate_entries_.GetGPUPtr(), candidate_entries_.count());
   log_engine_.WriteFormattedBlocks(block_map, prefix);
+}
+
+HashTable &MainEngine::hash_table()
+{
+  return hash_table_;
+}
+
+BlockArray &MainEngine::blocks()
+{
+  return blocks_;
+}
+
+LoggingEngine &MainEngine::log_engine()
+{
+  return log_engine_;
+}
+
+GeometryHelper MainEngine::geometry_helper()
+{
+  return geometry_helper_;
+}
+
+const RuntimeParams &MainEngine::runtime_params() const
+{
+  return runtime_params_;
 }

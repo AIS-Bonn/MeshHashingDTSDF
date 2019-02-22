@@ -17,24 +17,28 @@
 #include "visualization/bounding_box.h"
 #include "sensor/rgbd_sensor.h"
 
-class MainEngine {
+class MainEngine
+{
 public:
   // configure main data
   MainEngine(
-      const RuntimeParams& runtime_params,
-      const HashParams& hash_params,
-      const VolumeParams& volume_params,
-      const MeshParams& mesh_params,
-      const SensorParams& sensor_params,
-      const RayCasterParams& ray_caster_params
+      const RuntimeParams &runtime_params,
+      const HashParams &hash_params,
+      const VolumeParams &volume_params,
+      const MeshParams &mesh_params,
+      const SensorParams &sensor_params,
+      const RayCasterParams &ray_caster_params
   );
+
   ~MainEngine();
+
   void Reset();
 
   // configure engines
   void ConfigLocalizingEngine();
+
   void ConfigVisualizingEngine(
-      gl::Light& light,
+      gl::Light &light,
       bool enable_navigation,
       bool enable_global_mesh,
       bool enable_bounding_box,
@@ -50,43 +54,64 @@ public:
       bool enable_ply
   );
 
-  void Localizing(Sensor &sensor, int iters, float4x4& gt);
+  void Localizing(Sensor &sensor, int iters, float4x4 &gt);
+
   void Mapping(Sensor &sensor);
+
   void Meshing();
+
   void Recycle();
+
   int Visualize(float4x4 view);
+
   int Visualize(float4x4 view, float4x4 view_gt);
 
   void Log();
+
   void RecordBlocks(std::string prefix = "");
+
   void StoreBlocks(const std::string &path);
+
   void FinalLog();
 
-  const int& frame_count() {
+  const int &frame_count()
+  {
     return integrated_frame_count_;
   }
-  bool& enable_sdf_gradient() {
+
+  bool &enable_sdf_gradient()
+  {
     return enable_sdf_gradient_;
   }
+
+  HashTable &hash_table();
+
+  BlockArray &blocks();
+
+  LoggingEngine &log_engine();
+
+  GeometryHelper geometry_helper();
+
+  const RuntimeParams &runtime_params() const;
 
 private:
   // Engines
   VisualizingEngine vis_engine_;
-  LoggingEngine     log_engine_;
+  LoggingEngine log_engine_;
 
   // Core
-  HashTable        hash_table_;
-  BlockArray       blocks_;
-  EntryArray       candidate_entries_;
+  HashTable hash_table_;
+  BlockArray blocks_;
+  EntryArray candidate_entries_;
 
   // Meshing
-  Mesh             mesh_;
+  Mesh mesh_;
 
   // Geometry
-  GeometryHelper  geometry_helper_;
+  GeometryHelper geometry_helper_;
 
-  int             integrated_frame_count_ = 0;
-  bool            enable_sdf_gradient_;
+  int integrated_frame_count_ = 0;
+  bool enable_sdf_gradient_;
 
   HashParams hash_params_;
   VolumeParams volume_params_;

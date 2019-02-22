@@ -9,6 +9,8 @@
 #include "geometry/geometry_helper.h"
 #include "sensor/rgbd_sensor.h"
 
+class MainEngine;
+
 // @function
 // See what entries of @param hash_table
 // was affected by @param sensor
@@ -25,11 +27,9 @@
  * @return Runtime in s
  */
 double AllocBlockArray(
-    HashTable &hash_table,
+    EntryArray candidate_entries,
     Sensor &sensor,
-    RuntimeParams &runtime_params,
-    GeometryHelper &geometry_helper,
-    EntryArray candidate_entries
+    MainEngine &main_engine
 );
 
 /**
@@ -41,8 +41,6 @@ double AllocBlockArray(
  */
 double AllocVoxelArray(
     EntryArray candidate_entries,
-    BlockArray blocks,
     Sensor &sensor,
-    GeometryHelper &geometry_helper,
-    RuntimeParams &runtime_params
+    MainEngine &main_engine
 );
