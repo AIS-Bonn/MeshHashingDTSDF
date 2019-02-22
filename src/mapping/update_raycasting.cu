@@ -235,6 +235,112 @@ void UpdateRaycastedBlocksKernel(
   }
 }
 
+struct VoxelUpdateStatistics
+{
+  /** Mean number of updates per voxel (all voxels) */
+  float num_updates_mean;
+  /** Mean number of updates per voxels that are actually updated */
+  float num_updates_hit_mean;
+  /** Max number of updates per voxels that are actually updated */
+  int num_updates_hit_min;
+  /** Min number of updates per voxels that are actually updated */
+  int num_updates_hit_max;
+};
+
+__global__
+void CollectUpdateStatisticsKernel(
+    EntryArray candidate_entries,
+    uint num_entries,
+    BlockArray blocks,
+    RuntimeParams runtime_params,
+    VoxelUpdateStatistics *stats
+)
+{
+  size_t idx = (blockIdx.x * blockDim.x) + threadIdx.x;
+  if (idx >= num_entries)
+  {
+    return;
+  }
+  stats[idx].num_updates_hit_max = -1;
+  stats[idx].num_updates_hit_min = -1;
+  stats[idx].num_updates_hit_mean = 0;
+  stats[idx].num_updates_mean = 0;
+
+  const HashEntry &entry = candidate_entries[idx];
+  size_t max_voxel_idx = 0;
+  if (runtime_params.enable_directional_sdf)
+    max_voxel_idx = 5;
+  int count = 0;
+  int count_hit = 0;
+  for (size_t direction = 0; direction <= max_voxel_idx; direction++)
+  {
+    if (not blocks.HasVoxelArray(entry.ptr, direction))
+    {
+      continue;
+    }
+    VoxelArray &voxel_array = blocks.GetVoxelArray(entry.ptr, direction);
+    for (size_t i = 0; i < BLOCK_SIZE; i++)
+    {
+      Voxel &voxel = voxel_array.voxels[i];
+      stats[idx].num_updates_mean += voxel.num_updates;
+      if (voxel.num_updates)
+      {
+        stats[idx].num_updates_hit_mean += voxel.num_updates;
+        stats[idx].num_updates_hit_max = max(stats[idx].num_updates_hit_max, (int) voxel.num_updates);
+        if (stats[idx].num_updates_hit_min == -1)
+          stats[idx].num_updates_hit_min = voxel.num_updates;
+        else
+          stats[idx].num_updates_hit_min = min(stats[idx].num_updates_hit_min, voxel.num_updates);
+        count_hit++;
+      }
+      count++;
+    }
+  }
+  stats[idx].num_updates_mean /= count;
+  stats[idx].num_updates_hit_mean /= count_hit;
+}
+
+void CollectUpdateStatistics(
+    EntryArray candidate_entries,
+    uint num_entries,
+    BlockArray blocks,
+    RuntimeParams runtime_params)
+{
+  static bool initialized = false;
+  VoxelUpdateStatistics *stats, *stats_cpu;
+
+  checkCudaErrors(cudaMalloc(&stats, sizeof(VoxelUpdateStatistics) * num_entries));
+  stats_cpu = (VoxelUpdateStatistics *) malloc(sizeof(VoxelUpdateStatistics) * num_entries);
+
+  const dim3 num_blocks_alloc(static_cast<unsigned int>(
+                                  std::ceil(num_entries / static_cast<double>(CUDA_THREADS_PER_BLOCK))));
+  const dim3 num_threads_alloc(CUDA_THREADS_PER_BLOCK);
+  CollectUpdateStatisticsKernel << < num_blocks_alloc, num_threads_alloc >> > (
+      candidate_entries,
+          num_entries,
+          blocks,
+          runtime_params,
+          stats);
+  checkCudaErrors(
+      cudaMemcpy(stats_cpu, stats, num_entries * sizeof(VoxelUpdateStatistics), cudaMemcpyDeviceToHost));
+  int total_hit_max = 0;
+  int total_hit_min = std::numeric_limits<int>::max();
+  float total_hit_mean = 0;
+  float total_mean = 0;
+  for (size_t i = 0; i < num_entries; i++)
+  {
+    total_hit_max = max(total_hit_max, stats_cpu[i].num_updates_hit_max);
+    if (stats_cpu[i].num_updates_hit_min > 0)
+      total_hit_min = min(total_hit_min, stats_cpu[i].num_updates_hit_min);
+    total_mean += stats_cpu[i].num_updates_mean / num_entries;
+    total_hit_mean += stats_cpu[i].num_updates_hit_mean / num_entries;
+  }
+  free(stats_cpu);
+  checkCudaErrors(cudaFree(stats));
+  printf("MIN: %i, MAX: %i, MEAN(hit): %f, MEAN(total): %f\n", total_hit_min, total_hit_max, total_hit_mean,
+         total_mean);
+}
+
 double UpdateRaycasting(
     EntryArray &candidate_entries,
     BlockArray &blocks,
@@ -266,6 +372,8 @@ double UpdateRaycasting(
           geometry_helper);
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());
+
+  CollectUpdateStatistics(candidate_entries, candidate_entry_count, blocks, runtime_params);
 
   /// 2) Update SDF with fused values
   const dim3 num_blocks_alloc(static_cast<unsigned int>(
