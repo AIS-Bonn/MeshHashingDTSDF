@@ -81,18 +81,18 @@ void NormalizeNormalsKernel(float4 *normal, uint width)
  * Implementation from BundleFusion
  * Copyright (c) 2017 by Angela Dai and Matthias Niessner
  */
-inline __device__ float gaussD(float sigma, int x, int y)
+inline __device__ float gaussD(float factor, int x, int y)
 {
-  return exp(-((x * x + y * y) / (2.0f * sigma * sigma)));
+  return exp(-((x * x + y * y) * factor));
 }
 
 /**
  * Implementation from BundleFusion
  * Copyright (c) 2017 by Angela Dai and Matthias Niessner
  */
-inline __device__ float gaussR(float sigma, float dist)
+inline __device__ float gaussR(float factor, float dist)
 {
-  return exp(-(dist * dist) / (2.0 * sigma * sigma));
+  return exp(-(dist * dist) * factor);
 }
 
 /**
@@ -124,7 +124,10 @@ void BilateralFilterKernel(float4 *input, float4 *output, float sigma_d, float s
   float4 sum = make_float4(0.0f);
   float sum_weight = 0.0f;
 
-  const uint radius = (uint) ceil(2.0 * sigma_d);
+  float sigma_d_factor = 1 / (2.0f * sigma_d * sigma_d);
+  float sigma_r_factor = 1 / (2.0f * sigma_r * sigma_r);
+
+  const uint radius = (uint) ceil(sigma_d);
   for (int i = ux - radius; i <= ux + radius; i++)
   {
     for (int j = uy - radius; j <= uy + radius; j++)
@@ -137,7 +140,7 @@ void BilateralFilterKernel(float4 *input, float4 *output, float sigma_d, float s
       if (value.x == MINF or value.y == MINF or value.z == MINF or value.w == MINF)
         continue;
 
-      const float weight = gaussD(sigma_d, i - ux, j - uy) * gaussR(sigma_r, length(value - center));
+      const float weight = gaussD(sigma_d_factor, i - ux, j - uy) * gaussR(sigma_r_factor, length(value - center));
 
       sum += weight * value;
       sum_weight += weight;
