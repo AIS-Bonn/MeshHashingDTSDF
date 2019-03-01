@@ -21,18 +21,31 @@ void LoggingEngine::Init(std::string path)
   time_stamp_file_.open(base_path_ + "/time_mapping.txt");
   if (!time_stamp_file_.is_open())
   {
-    LOG(ERROR) << "Can't open mappoing stamp file";
+    LOG(ERROR) << "Can't open mapping time stamp file";
     return;
   }
 
   time_stamp_file_.flags(std::ios::right);
   time_stamp_file_.setf(std::ios::fixed);
+  time_stamp_file_ << "# frame_id alloc_time collect_time fusion_time" << std::endl;
 
   meshing_time_file_.open(base_path_ + "/time_meshing.txt");
+  meshing_time_file_.setf(std::ios::fixed);
+  meshing_time_file_ << "# frame_id meshing_time" << std::endl;
+
+  recycle_time_file_.open(base_path_ + "/time_recycle.txt");
+  recycle_time_file_.setf(std::ios::fixed);
+  recycle_time_file_ << "# frame_id recycle_time" << std::endl;
+
+  preprocess_time_file_.open(base_path_ + "/time_preprocess.txt");
+  preprocess_time_file_.setf(std::ios::fixed);
+  preprocess_time_file_ << "# copy_time normal_estimation_time bilateral_filter_time" << std::endl;
 
   mesh_stats_file_.open(base_path_ + "/stats_mesh.txt");
 
   localization_err_file_.open(base_path_ + "/localization_error.txt");
+
+  voxel_update_file_.open(base_path_ + "/voxel_update.txt");
 }
 
 LoggingEngine::~LoggingEngine()
@@ -41,6 +54,14 @@ LoggingEngine::~LoggingEngine()
     video_writer_.release();
   if (time_stamp_file_.is_open())
     time_stamp_file_.close();
+  if (meshing_time_file_.is_open())
+    meshing_time_file_.close();
+  if (recycle_time_file_.is_open())
+    recycle_time_file_.close();
+  if (preprocess_time_file_.is_open())
+    preprocess_time_file_.close();
+  if (voxel_update_file_.is_open())
+    voxel_update_file_.close();
   time_stamp_file_ << std::setprecision(4);
 }
 
@@ -62,7 +83,7 @@ void LoggingEngine::ConfigPlyWriter()
   enable_ply_ = true;
 }
 
-void LoggingEngine::WritePly(CompactMesh &mesh, const std::string& filename)
+void LoggingEngine::WritePly(CompactMesh &mesh, const std::string &filename)
 {
   SavePly(mesh, base_path_ + "/" + filename);
 }
@@ -106,7 +127,7 @@ void LoggingEngine::WriteMappingTimeStamp(float alloc_time,
 
 void LoggingEngine::WriteMeshingTimeStamp(float time, int frame_idx)
 {
-  meshing_time_file_ << frame_idx << " " << time << "\n";
+  meshing_time_file_ << frame_idx << " " << time * 1000 << "\n";
 }
 
 void LoggingEngine::WriteMeshStats(int vtx_count, int tri_count)
@@ -292,4 +313,57 @@ BlockMap LoggingEngine::RecordBlockToMemory(
   delete[] block_cpu;
   delete[] candidate_entry_cpu;
   return block_map;
+}
+
+void LoggingEngine::WriteVoxelUpdate(int max, float mean_hit, float mean)
+{
+  voxel_update_file_ << max << " " << mean_hit << " " << mean << std::endl;
+}
+
+void
+LoggingEngine::WritePreprocessTimeStamp(double copy_time, double normal_estimation_time, double bilateral_filter_time)
+{
+  preprocess_time_file_ << copy_time * 1000 << " "
+                        << normal_estimation_time * 1000
+                        << " " << bilateral_filter_time * 1000
+                        << std::endl;
+}
+
+void LoggingEngine::WriteRecycleTimeStamp(double recycle_time, int frame_idx)
+{
+  recycle_time_file_ << frame_idx << " "
+                     << recycle_time * 1000
+                     << std::endl;
+}
+
+void LoggingEngine::WriteBlockStats(const BlockMap &blocks, std::string filename)
+{
+  YAML::Node root;
+  for (auto &&block:blocks)
+  {
+    YAML::Node block_node;
+    block_node["pos"]["x"] = block.first.x;
+    block_node["pos"]["y"] = block.first.y;
+    block_node["pos"]["z"] = block.first.z;
+    for (size_t direction = 0; direction < N_DIRECTIONS; direction++)
+      block_node["ptr"].push_back(block.second.voxel_array_ptrs[direction]);
+
+    root["blocks"].push_back(block_node);
+  }
+
+
+  std::ofstream file(filename);
+  if (!file.is_open())
+  {
+    LOG(ERROR) << "can't open block stats file.";
+    return;
+  }
+
+  YAML::Emitter emitter;
+  emitter.SetIndent(4);
+  emitter.SetSeqFormat(YAML::Flow);
+  emitter << root;
+  file << emitter.c_str();
+
+  file.close();
 }

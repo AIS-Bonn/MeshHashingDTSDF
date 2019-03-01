@@ -18,15 +18,19 @@ class Direction(enum.Enum):
     FORWARD = 4
     BACKWARD = 5
 
+
 directions = [Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT, Direction.FORWARD, Direction.BACKWARD]
+
 
 def get_array_offset(coordinates_xyz):
     return coordinates_xyz[2] * side_length * side_length + coordinates_xyz[1] * side_length + coordinates_xyz[0]
 
+
 def main():
-    data = None
     with open("/home/splietke/code/MeshHashing/bin/FormatBlocks/block.formatblock", "r") as stream:
-        data = yaml.load(stream)
+        data = yaml.load(stream, Loader=yaml.CLoader)
+
+    print("finished reading block file")
 
     interpolation_method = methods[0]
 
@@ -41,6 +45,7 @@ def main():
         min_z = min(min_z, z)
         max_z = max(max_z, z)
     num_blocks_z = max_z - min_z + 1
+    print(dimensions, min_z, max_z)
 
     size = math.ceil((max(dimensions) + 1) * side_length / 2) * 4
     grids = [np.full((size, size), np.inf) for i in range(len(directions) * side_length * num_blocks_z)]
@@ -54,23 +59,29 @@ def main():
             for (row, col) in itertools.product(range(side_length), range(side_length)):
                 if not block["directions"][direction.value]:
                     continue
-                grid[side_length * y + row + size // 2, side_length * x + col + size // 2] = float(
-                    block["directions"][direction.value]["sdf"][get_array_offset([col, row, sl])])
+                # change value, so zero crossing becomes jump from -1 to 1 (better visibility)
+                val = float(block["directions"][direction.value]["sdf"][get_array_offset([col, row, sl])])
+                # val = math.copysign(1, val) * (1 - abs(val)) # invert color-fade for sharper +/- contrast
+                grid[side_length * y + row + size // 2, side_length * x + col + size // 2] = val
 
-    fig, axs = plt.subplots(nrows=side_length * num_blocks_z, ncols=len(directions), figsize=(14, 2 * num_blocks_z * len(directions)),
-                            subplot_kw={'xticks': np.arange(0, size, step=side_length),
+    fig_size = (8 * max(dimensions[0], dimensions[1]), 8 * max(dimensions[0], dimensions[1]) * dimensions[2])
+    fig, axs = plt.subplots(nrows=side_length * num_blocks_z, ncols=len(directions), figsize=fig_size,
+                            subplot_kw={'xticks': np.arange(-0.5, size, step=side_length),
                                         'xticklabels': [i for i in range(-size // 2, size // 2, side_length)],
-                                        'yticks': np.arange(0, size, step=side_length),
+                                        'yticks': np.arange(-0.5, size, step=side_length),
                                         'yticklabels': [i for i in range(-size // 2, size // 2, side_length)]})
 
     fig.subplots_adjust(left=0.10, right=0.97, hspace=0.3, wspace=0.05)
 
     # https://matplotlib.org/examples/color/colormaps_reference.html
-    for ax, (block_z, sl, direction) in zip(axs.flat, itertools.product(range(max_z, min_z - 1, -1), range(side_length - 1, -1, -1), directions)):
-        ax.imshow(grids[side_length * len(directions) * (block_z - min_z) + len(directions) * sl + direction.value], interpolation=interpolation_method, cmap='RdYlGn')
+    for ax, (block_z, sl, direction) in zip(axs.flat, itertools.product(range(max_z, min_z - 1, -1),
+                                                                        range(side_length - 1, -1, -1), directions)):
+        ax.imshow(grids[side_length * len(directions) * (block_z - min_z) + len(directions) * sl + direction.value],
+                  interpolation=interpolation_method, cmap='RdYlGn')
         ax.grid(color='k', linestyle='-', linewidth=1)
         ax.set_title(direction.name + " " + str(block_z * side_length + sl))
-    plt.show()
+    plt.savefig("/tmp/fig.png")
+    # plt.show()
 
 
 if __name__ == "__main__":

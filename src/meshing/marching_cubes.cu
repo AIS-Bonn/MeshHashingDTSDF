@@ -430,8 +430,11 @@ bool GetVoxelSDFValues(
     }
 
 //    if (voxel_query.inv_sigma2 < squaref(1.0f / kVoxelSize) / 4)
-    // Weight is cubic in voxel size (ray casting)
-    const float weight_threshold = static_cast<const float>(1e8 * powf(kVoxelSize, 3));
+//    // mean number of voxel updates fitted ( a * voxel_size^b = mean )
+//    const float weight_threshold = 10 * 1221.2274f * powf(kVoxelSize, 1.2479f);
+    // max number of voxel updates fitted ( a * voxel_size^b = max )
+    const float weight_threshold = 2 * 1.4732e+05f * powf(kVoxelSize, 1.7013f);
+
     if (voxel_query.inv_sigma2 < weight_threshold) // raycasting: Bigger voxels -> more updates
     { // too uncertain (small weight)
       mc_index = -1;

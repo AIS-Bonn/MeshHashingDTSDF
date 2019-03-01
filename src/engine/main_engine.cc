@@ -198,6 +198,8 @@ void MainEngine::Meshing()
 
 void MainEngine::Recycle()
 {
+  Timer timer;
+  timer.Tick();
   CollectLowSurfelBlocks(candidate_entries_,
                          blocks_,
                          hash_table_,
@@ -218,6 +220,7 @@ void MainEngine::Recycle()
                              mesh_,
                              hash_table_);
   }
+  log_engine_.WriteRecycleTimeStamp(timer.Tock(), integrated_frame_count_);
 }
 
 // view: world -> camera
@@ -382,6 +385,11 @@ void MainEngine::FinalLog()
   }
   log_engine_.WriteMeshStats(vis_engine_.compact_mesh().vertex_count(),
                              vis_engine_.compact_mesh().triangle_count());
+
+  BlockMap block_map = log_engine_.RecordBlockToMemory(
+      blocks_.GetGPUPtr(), hash_params_.max_block_count,
+      candidate_entries_.GetGPUPtr(), candidate_entries_.count());
+  log_engine_.WriteBlockStats(block_map, "block_stats.yml");
 }
 
 /// Life cycle
@@ -434,6 +442,7 @@ void MainEngine::Reset()
 
 void MainEngine::ConfigVisualizingEngine(
     gl::Light &light,
+    bool enable_visualization,
     bool enable_navigation,
     bool enable_global_mesh,
     bool enable_bounding_box,
@@ -443,6 +452,10 @@ void MainEngine::ConfigVisualizingEngine(
     bool enable_color
 )
 {
+  vis_engine_.compact_mesh().Resize(mesh_params_);
+
+  if (not enable_visualization)
+    return;
   vis_engine_.Init("VisEngine", 1280, 960);
   vis_engine_.set_interaction_mode(enable_navigation);
   vis_engine_.set_light(light);
@@ -451,7 +464,6 @@ void MainEngine::ConfigVisualizingEngine(
                               enable_global_mesh,
                               enable_polygon_mode,
                               enable_color);
-  vis_engine_.compact_mesh().Resize(mesh_params_);
 
   if (enable_bounding_box || enable_trajectory)
   {

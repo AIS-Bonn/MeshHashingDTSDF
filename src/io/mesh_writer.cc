@@ -114,7 +114,7 @@ void SavePly(CompactMesh& compact_mesh, std::string path) {
       "property uchar green\n"
       "property uchar blue\n";
   ss << "element face " << compact_triangle_count << "\n";
-  ss << "property list uchar int vertex_index\n";
+  ss << "property list uchar int vertex_indices\n";
   ss << "end_header\n";
   out << ss.str();
 

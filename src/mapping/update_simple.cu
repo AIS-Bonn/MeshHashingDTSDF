@@ -74,9 +74,12 @@ void UpdateBlocksSimpleKernel(
   );
   float truncation_distance = geometry_helper.truncate_distance(depth);
   float3 surface_point_world = make_float3(wTc * make_float4(surface_point_camera, 1));
-  float weight = fmaxf(1e8 * powf(geometry_helper.voxel_size, 3) * geometry_helper.weight_sample *
+
+//  float weight = fmaxf(1e8 * powf(geometry_helper.voxel_size, 3) *
+  float weight = fmaxf(20 * 1.4732e+05f * powf(geometry_helper.voxel_size, 1.7013f) *
+                       geometry_helper.weight_sample *
                        weight_depth(normalized_depth) *
-                       weight_voxel_correlation(surface_point_world, voxel_pos_world, truncation_distance) *
+//                       weight_voxel_correlation(surface_point_world, voxel_pos_world, truncation_distance) *
                        weight_normal_angle(normal_camera),
                        1.0f);
   if (depth - voxel_pos_camera.z <= -truncation_distance)
@@ -167,9 +170,10 @@ void UpdateBlocksSimpleDirectionalKernel(
   );
   float truncation_distance = geometry_helper.truncate_distance(depth);
   float3 surface_point_world = make_float3(wTc * make_float4(surface_point_camera, 1));
-  float weight = fmaxf(1e7 * powf(geometry_helper.voxel_size, 3) * geometry_helper.weight_sample *
+  float weight = fmaxf(20 * 1.4732e+05f * powf(geometry_helper.voxel_size, 1.7013f) *
+                       geometry_helper.weight_sample *
                        weight_depth(normalized_depth) *
-                       weight_voxel_correlation(surface_point_world, voxel_pos_world, truncation_distance) *
+//                       weight_voxel_correlation(surface_point_world, voxel_pos_world, truncation_distance) *
                        weight_normal_angle(make_float3(normal_camera)),
                        1.0f);
   if (depth - voxel_pos_camera.z <= -truncation_distance)

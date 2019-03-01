@@ -6,6 +6,7 @@
 #include <extern/cuda/helper_cuda.h>
 #include "core/params.h"
 #include "preprocess.h"
+#include "util/timer.h"
 
 __global__
 void ResetInlierRatioKernel(
@@ -365,9 +366,12 @@ __host__
 void ComputeNormalMap(
     float *depth_data,
     float4 *normal_data,
-    SensorParams &params
+    SensorParams &params,
+    double &normal_estimation_time,
+    double &bilateral_filter_time
 )
 {
+  Timer timer;
   uint width = params.width;
   uint height = params.height;
 
@@ -381,9 +385,11 @@ void ComputeNormalMap(
 //  cv::cuda::GpuMat depth_img_filtered;
 //  cv::cuda::bilateralFilter(depth_img, depth_img_filtered, -1, 5, 5, cv::BORDER_DEFAULT);
 
+  timer.Tick();
   float4 *normals_tmp;
   checkCudaErrors(cudaMalloc(&normals_tmp, sizeof(float4) * width * height));
   ComputeNormalMapKernel << < grid_size, block_size >> > (
+//      normal_data,
       normals_tmp,
 //          reinterpret_cast<float *>(depth_img_filtered.data),
           depth_data,
@@ -393,7 +399,9 @@ void ComputeNormalMap(
   );
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());
+  normal_estimation_time = timer.Tock();
 
+  timer.Tick();
   BilateralFilterKernel << < grid_size, block_size >> > (
       normals_tmp,
           normal_data,
@@ -404,8 +412,10 @@ void ComputeNormalMap(
   );
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());
+  bilateral_filter_time = timer.Tock();
 
   checkCudaErrors(cudaFree(normals_tmp));
+
 
   // Filter normal data AFTER normal estimation
 //  cv::cuda::GpuMat normal_map(height, width, CV_32FC4, normal_data);

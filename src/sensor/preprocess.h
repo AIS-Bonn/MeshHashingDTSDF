@@ -11,33 +11,34 @@
 
 __host__
 void ResetInlierRatio(
-    float* inlier_ratio,
-    SensorParams& params
+    float *inlier_ratio,
+    SensorParams &params
 );
 
 __host__
 void ConvertDepthFormat(
-    cv::Mat& depth_img,
-    short* depth_buffer,
-    float* depth_data,
-    SensorParams& params
+    cv::Mat &depth_img,
+    short *depth_buffer,
+    float *depth_data,
+    SensorParams &params
 );
 
 __host__
 void ConvertColorFormat(
     cv::Mat &color_img,
-    uchar4* color_buffer,
-    float4* color_data,
-    SensorParams& params
+    uchar4 *color_buffer,
+    float4 *color_data,
+    SensorParams &params
 );
 
 __host__
 void ComputeNormalMap(
-    float* depth_data,
-    float4* normal_data,
-    SensorParams& params
+    float *depth_data,
+    float4 *normal_data,
+    SensorParams &params,
+    double &normal_estimation_time,
+    double &bilateral_filter_time
 );
-
 
 
 #endif //MESH_HASHING_PREPROCESS_H

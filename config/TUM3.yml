@@ -1,9 +1,12 @@
 %YAML:1.0
 
 #dataset_path:      "/home/splietke/datasets/TUM/fr3/long_office_household/"
-#dataset_path:      "/home/splietke/projects/directionalTSDF/datasets/cuboid_03/"
+dataset_path:      "/home/splietke/projects/directionalTSDF/datasets/cuboid_03_thin/"
 #dataset_path:      "/home/splietke/projects/directionalTSDF/datasets/sphere/"
-dataset_path:      "/home/splietke/projects/directionalTSDF/datasets/dragon/"
+#dataset_path:      "/home/splietke/projects/directionalTSDF/datasets/armadillo/"
+#dataset_path:      "/home/splietke/projects/directionalTSDF/datasets/asian_dragon/"
+#dataset_path:      "/home/splietke/projects/directionalTSDF/datasets/bunny/"
+#dataset_path:      "/home/splietke/projects/directionalTSDF/datasets/dragon/"
 #dataset_path:      "/home/splietke/projects/directionalTSDF/datasets/turbine_blade/"
 
 # Hash params
@@ -14,30 +17,35 @@ linked_list_size:  7
 max_block_count:    300000
 
 # SDF params
+#voxel_size:                0.0025
+#sdf_upper_bound:           4.0
+#truncation_distance_scale: 0.000
+#truncation_distance:       0.005
+
 #voxel_size:                0.005
 #sdf_upper_bound:           4.0
 #truncation_distance_scale: 0.000
-#truncation_distance:       0.010
-
-#voxel_size:                0.008
-#sdf_upper_bound:           4.0
-#truncation_distance_scale: 0.000
-#truncation_distance:       0.032
+#truncation_distance:       0.020
 
 voxel_size:                0.01
 sdf_upper_bound:           4.0
 truncation_distance_scale: 0.00
-truncation_distance:       0.02
+truncation_distance:       0.08
 
 #voxel_size:                0.02
 #sdf_upper_bound:           4.0
 #truncation_distance_scale: 0.00
-#truncation_distance:       0.04
+#truncation_distance:       0.08
+
+#voxel_size:                0.03
+#sdf_upper_bound:           4.0
+#truncation_distance_scale: 0.00
+#truncation_distance:       0.12
 
 #voxel_size:                0.04
 #sdf_upper_bound:           4.0
 #truncation_distance_scale: 0.00
-#truncation_distance:       0.08
+#truncation_distance:       0.16
 
 #voxel_size:                0.05
 #sdf_upper_bound:           5.0
@@ -50,7 +58,6 @@ truncation_distance:       0.02
 #truncation_distance:       0.24
 
 weight_sample:             1
-#weight_sample:             30
 weight_upper_bound:        255
 
 # Sensor params

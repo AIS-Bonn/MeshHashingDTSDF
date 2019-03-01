@@ -92,7 +92,9 @@ struct RuntimeParams {
   bool enable_trajectory;
   bool enable_ray_casting;
 
+  bool enable_visualization;
   bool enable_video_recording;
+  bool enable_block_saving;
   bool enable_ply_saving;
 
   std::string filename_prefix;

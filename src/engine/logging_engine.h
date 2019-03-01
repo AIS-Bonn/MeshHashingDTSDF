@@ -9,6 +9,10 @@
 #include <string>
 #include <opencv2/opencv.hpp>
 
+class Block;
+class CompactMesh;
+class HashEntry;
+
 class Int3Sort {
 public:
   bool operator()(int3 const &a, int3 const &b) const {
@@ -36,8 +40,12 @@ public:
                                int frame_idx);
   void WriteMappingTimeStamp(float alloc_time, float collect_time, float predict_time, float update_time,
                              int frame_idx);
+  void WritePreprocessTimeStamp(double copy_time, double normal_estimation_time, double bilateral_filter_time);
+  void WriteRecycleTimeStamp(double recycle_time, int frame_idx);
   void WriteMeshingTimeStamp(float time, int frame_idx);
   void WriteMeshStats(int vtx_count, int tri_count);
+  void WriteBlockStats(const BlockMap &blocks, std::string filename);
+  void WriteVoxelUpdate(int max, float mean_hit, float mean);
 
   BlockMap RecordBlockToMemory(
       const Block *block_gpu, uint block_num,
@@ -62,9 +70,12 @@ private:
   std::string prefix_;
   cv::VideoWriter video_writer_;
   std::ofstream time_stamp_file_;
+  std::ofstream preprocess_time_file_;
+  std::ofstream recycle_time_file_;
   std::ofstream meshing_time_file_;
   std::ofstream mesh_stats_file_;
   std::ofstream localization_err_file_;
+  std::ofstream voxel_update_file_;
 };
 
 

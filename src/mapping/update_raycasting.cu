@@ -33,7 +33,8 @@ inline void UpdateVoxel(
 
   if (not blocks.HasVoxelArray(hash_table.GetEntry(block_idx).ptr, voxel_array_idx))
   {
-    printf("(%i, %i, %i) ", voxel_idx.x, voxel_idx.y, voxel_idx.z);
+    // FIXME: Issues from parallel allocation
+//    printf("(%i, %i, %i) ", voxel_idx.x, voxel_idx.y, voxel_idx.z);
     return;
   }
   Voxel &voxel = blocks.GetVoxelArray(hash_table.GetEntry(block_idx).ptr, voxel_array_idx).voxels[local_idx];
@@ -42,7 +43,7 @@ inline void UpdateVoxel(
 
   float weight = fmaxf(geometry_helper.weight_sample *
                        weight_depth(normalized_depth) *
-                       weight_voxel_correlation(surface_point_world, voxel_pos_world, truncation_distance) *
+//                       weight_voxel_correlation(surface_point_world, voxel_pos_world, truncation_distance) *
                        weight_normal_angle(make_float3(normal_camera)) *
                        weight_direction_compliance(voxel_array_idx, normal_world), 1.0f);
 
@@ -145,7 +146,6 @@ void UpdateRaycastingKernel(
       {
         if (directional_weights[direction] > direction_weight_threshold)
         {
-
           UpdateVoxel(
               voxel_idx,
               direction,
@@ -332,8 +332,9 @@ void CollectUpdateStatistics(
   }
   free(stats_cpu);
   checkCudaErrors(cudaFree(stats));
-  printf("MIN: %i, MAX: %i, MEAN(hit): %f, MEAN(total): %f\n", total_hit_min, total_hit_max, total_hit_mean,
-         total_mean);
+//  printf("MIN: %i, MAX: %i, MEAN(hit): %f, MEAN(total): %f\n", total_hit_min, total_hit_max, total_hit_mean,
+//         total_mean);
+  main_engine.log_engine().WriteVoxelUpdate(total_hit_max, total_hit_mean, total_mean);
 }
 
 double UpdateRaycasting(
@@ -365,7 +366,7 @@ double UpdateRaycasting(
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());
 
-  CollectUpdateStatistics(candidate_entries, main_engine);
+//  CollectUpdateStatistics(candidate_entries, main_engine);
 
   /// 2) Update SDF with fused values
   const dim3 num_blocks_alloc(static_cast<unsigned int>(

@@ -12,6 +12,8 @@
 #include "core/params.h"
 #include "sensor/preprocess.h"
 #include <glog/logging.h>
+#include <engine/logging_engine.h>
+
 /// At first get rid of CUDARGBDAdaptor and Sensor, use it directly
 struct SensorData {
   /// sensor data raw
@@ -46,7 +48,7 @@ public:
   ~Sensor();
   void BindCUDATexture();
 
-  int Process(cv::Mat &depth, cv::Mat &color);
+  int Process(cv::Mat &depth, cv::Mat &color, LoggingEngine &logging_engine);
 
   void set_transform(float4x4 wTc) {
     wTc_ = wTc;

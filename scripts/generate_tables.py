@@ -101,7 +101,7 @@ def main():
     for mc_idx in range(0, 256):
         comp = compatibility(mc_idx)
         # print("{{{}, {}, {}, {}, {}, {}}}".format(*comp), end="")
-        print("{}{{{}, {}, {}, {}, {}, {}}}".format(mc_idx, *comp), end="")
+        print("{}{{{}, {}, {}, {}, {}, {}}}".format(*comp), end="")
         if mc_idx < 255:
             print(",")
         else:

@@ -1,18 +1,56 @@
 %YAML:1.0
-dataset_path:      "/home/splietke/datasets/ICL-NUIM/living_room_traj3n_frei_png/"
+#dataset_path:      "/home/splietke/datasets/ICL-NUIM/living_room_traj3n_frei_png/"
+dataset_path:      "/home/splietke/datasets/ICL-NUIM/living_room_traj3_frei_png/"
 
 bucket_count:      40000
 bucket_size:       10
 count:             400000
 linked_list_size:  7
-max_block_count:    15000
+max_block_count:    200000
 
 # SDF params
-voxel_size:                0.05
+#voxel_size:                0.0025
+#sdf_upper_bound:           4.0
+#truncation_distance_scale: 0.000
+#truncation_distance:       0.005
+
+#voxel_size:                0.005
+#sdf_upper_bound:           4.0
+#truncation_distance_scale: 0.000
+#truncation_distance:       0.010
+
+#voxel_size:                0.01
+#sdf_upper_bound:           4.0
+#truncation_distance_scale: 0.00
+#truncation_distance:       0.02
+
+voxel_size:                0.02
 sdf_upper_bound:           4.0
-truncation_distance_scale: 0.02
-truncation_distance:       0.1
-weight_sample:             50
+truncation_distance_scale: 0.00
+truncation_distance:       0.04
+
+#voxel_size:                0.03
+#sdf_upper_bound:           4.0
+#truncation_distance_scale: 0.00
+#truncation_distance:       0.06
+
+#voxel_size:                0.04
+#sdf_upper_bound:           4.0
+#truncation_distance_scale: 0.00
+#truncation_distance:       0.08
+
+#voxel_size:                0.05
+#sdf_upper_bound:           5.0
+#truncation_distance_scale: 0.00
+#truncation_distance:       0.10
+
+#voxel_size:                0.12
+#sdf_upper_bound:           4.0
+#truncation_distance_scale: 0.00
+#truncation_distance:       0.24
+
+#weight_sample:             0.00001
+weight_sample:             1
 weight_upper_bound:        255
 
 # Sensor params
@@ -34,5 +72,6 @@ sample_sdf_threshold: 0.808
 sdf_threshold:        0.800
 enable_gradient:      1
 
-max_vertex_count:     400000
+max_vertex_count:     600000
 max_triangle_count:   800000
+

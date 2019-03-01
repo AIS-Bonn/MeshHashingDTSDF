@@ -29,7 +29,9 @@ void LoadRuntimeParams(std::string path, RuntimeParams& params) {
   params.enable_trajectory  = (int)fs["enable_trajectory"];
   params.enable_ray_casting   = (int)fs["enable_ray_casting"];
 
+  params.enable_visualization  = (int)fs["enable_visualization"];
   params.enable_video_recording  = (int)fs["enable_video_recording"];
+  params.enable_block_saving     = (int)fs["enable_block_saving"];
   params.enable_ply_saving     = (int)fs["enable_ply_saving"];
   params.filename_prefix = (std::string)fs["filename_prefix"];
   params.time_profile    = (std::string)fs["time_profile"];

@@ -62,9 +62,13 @@ int main(int argc, char **argv)
   );
 
   gl::Light light;
-  light.Load("../config/lights.yaml");
+  if (args.enable_visualization)
+  {
+    light.Load("../config/lights.yaml");
+  }
   main_engine.ConfigVisualizingEngine(
       light,
+      args.enable_visualization,
       args.enable_navigation,
       args.enable_global_mesh,
       args.enable_bounding_box,
@@ -83,29 +87,44 @@ int main(int argc, char **argv)
   cv::Mat color, depth;
   float4x4 wTc, cTw;
   int frame_count = 0;
-  while (rgbd_local_sequence.ProvideData(depth, color, wTc, false)) {
+  while (rgbd_local_sequence.ProvideData(depth, color, wTc, false))
+  {
     frame_count++;
+//    if (frame_count % 10 != 0)
+//      continue;
+//    if (frame_count < 300)// or frame_count > 600)
+//      continue;
     if (args.run_frames > 0 && frame_count > args.run_frames)
       break;
 
     // Preprocess data
-    sensor.Process(depth, color);
+    wTc.m24 -= 0.00;
+    sensor.Process(depth, color, main_engine.log_engine());
     sensor.set_transform(wTc);
     cTw = wTc.getInverse();
 
     main_engine.Mapping(sensor);
     main_engine.Meshing();
-    if (main_engine.Visualize(cTw))
-      break;
+    if (args.enable_visualization)
+    {
+      if (main_engine.Visualize(cTw))
+        break;
+    }
 
     main_engine.Log();
     main_engine.Recycle();
   }
 
-  main_engine.StoreBlocks("block");
   main_engine.FinalLog();
+  if (args.enable_block_saving)
+  {
+    main_engine.StoreBlocks("block");
+  }
 
-  while (args.enable_navigation and not main_engine.Visualize(cTw));
+  if (args.enable_visualization)
+  {
+    while (args.enable_navigation and not main_engine.Visualize(cTw));
+  }
 
   return 0;
 }

@@ -9,7 +9,7 @@ dataset_type:    3
 # Update type
 # 0: Voxel projection
 # 1: Ray casting
-update_type: 1
+update_type: 0
 
 # Raycasting mode
 # 0: Standard raycasting (direction = camera-surfacepoint)
@@ -17,7 +17,7 @@ update_type: 1
 raycasting_mode: 1
 
 # -----------
-enable_point_to_plane:  1
+enable_point_to_plane:  0
 enable_directional_sdf: 0
 
 enable_sdf_gradient:    1
@@ -30,7 +30,9 @@ enable_bounding_box:    0
 enable_trajectory:      1
 enable_ray_casting:     0
 
-enable_video_recording:  1
+enable_visualization:    1
+enable_video_recording:  0
+enable_block_saving:     1
 enable_ply_saving:       1
 
 filename_prefix: "burghers"

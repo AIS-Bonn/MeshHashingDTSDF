@@ -7,6 +7,7 @@
 #include <geometry/geometry_helper.h>
 #include <sensor/preprocess.h>
 #include <util/debugging.hpp>
+#include <util/timer.h>
 #include <visualization/color_util.h>
 
 #include <driver_types.h>
@@ -117,18 +118,24 @@ void Sensor::BindCUDATexture() {
                                           NULL));
 }
 
-int Sensor::Process(cv::Mat &depth, cv::Mat &color) {
+int Sensor::Process(cv::Mat &depth, cv::Mat &color, LoggingEngine &logging_engine) {
   // TODO(wei): deal with distortion
   /// Disable all filters at current
+  Timer timer;
+  timer.Tick();
   ConvertDepthFormat(depth, data_.depth_buffer, data_.depth_data, params_);
   ConvertColorFormat(color, data_.color_buffer, data_.color_data, params_);
   ResetInlierRatio(data_.inlier_ratio, params_);
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());
 
-  ComputeNormalMap(data_.depth_data, data_.normal_data, params_);
+  double copy_time = timer.Tock();
+
+  double normal_estimation_time, bilateral_filter_time;
+  ComputeNormalMap(data_.depth_data, data_.normal_data, params_, normal_estimation_time, bilateral_filter_time);
 
   /// Array used as texture in mapper
+  timer.Tick();
   checkCudaErrors(cudaMemcpyToArray(data_.depth_array, 0, 0,
                                     data_.depth_data,
                                     sizeof(float)*params_.height*params_.width,
@@ -142,6 +149,8 @@ int Sensor::Process(cv::Mat &depth, cv::Mat &color) {
                                     data_.normal_data,
                                     sizeof(float4)*params_.height*params_.width,
                                     cudaMemcpyDeviceToDevice));
+  copy_time += timer.Tock();
+  logging_engine.WritePreprocessTimeStamp(copy_time, normal_estimation_time, bilateral_filter_time);
 
   // Save debug normal image
 //  static uint counter = 0;
