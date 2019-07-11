@@ -103,13 +103,18 @@ int main(int argc, char **argv)
     sensor.set_transform(wTc);
     cTw = wTc.getInverse();
 
-    main_engine.Mapping(sensor);
-    main_engine.Meshing();
+	  main_engine.Mapping(sensor);
     if (args.enable_visualization)
     {
+	    main_engine.Meshing();
       if (main_engine.Visualize(cTw))
         break;
     }
+
+    std::stringstream ss;
+    ss << "block" << std::setw(4) << std::setfill('0') << frame_count;
+//    main_engine.StoreBlocks(ss.str());
+//    main_engine.WriteMesh("meshes/" + ss.str());
 
     main_engine.Log();
     main_engine.Recycle();

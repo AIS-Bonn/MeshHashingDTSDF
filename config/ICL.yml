@@ -1,12 +1,12 @@
 %YAML:1.0
-#dataset_path:      "/home/splietke/datasets/ICL-NUIM/living_room_traj3n_frei_png/"
-dataset_path:      "/home/splietke/datasets/ICL-NUIM/living_room_traj3_frei_png/"
+dataset_path:      "/home/splietke/datasets/ICL-NUIM/lr_kt0/"
+#dataset_path:      "/home/splietke/datasets/ICL-NUIM/office_kt0/"
 
 bucket_count:      40000
 bucket_size:       10
 count:             400000
 linked_list_size:  7
-max_block_count:    200000
+max_block_count:    300000
 
 # SDF params
 #voxel_size:                0.0025
@@ -59,7 +59,7 @@ fy:              480
 cx:              319.5
 cy:              239.5
 min_depth_range: 0.5
-max_depth_range: 4.0
+max_depth_range: 5.0
 range_factor:    0.0002
 height:          480
 width:           640
@@ -72,6 +72,5 @@ sample_sdf_threshold: 0.808
 sdf_threshold:        0.800
 enable_gradient:      1
 
-max_vertex_count:     600000
-max_triangle_count:   800000
-
+max_vertex_count:    1000000
+max_triangle_count:  2000000

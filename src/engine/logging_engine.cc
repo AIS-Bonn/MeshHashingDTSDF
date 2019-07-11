@@ -2,6 +2,9 @@
 // Created by wei on 17-10-24.
 //
 
+#include <capnp/message.h>
+#include <capnp/serialize-packed.h>
+#include <io/block_serialization.capnp.h>
 #include <experimental/filesystem>
 #include <yaml-cpp/yaml.h>
 #include <iomanip>
@@ -10,6 +13,7 @@
 #include <core/block.h>
 #include <core/hash_entry.h>
 #include <extern/cuda/helper_cuda.h>
+#include <fcntl.h>
 #include "logging_engine.h"
 
 namespace fs = std::experimental::filesystem;
@@ -134,6 +138,74 @@ void LoggingEngine::WriteMeshStats(int vtx_count, int tri_count)
 {
   mesh_stats_file_ << "Vertices: " << vtx_count << "\n"
                    << "Triangles: " << tri_count;
+}
+
+void LoggingEngine::WriteProtocolBlocks(const BlockMap &block_map, std::string filename)
+{
+  fs::create_directories(base_path_ + "/Blocks/");
+  std::string path = base_path_ + "/Blocks/" + filename + ".block";
+  int file_descriptor = open(path.c_str(), O_CREAT | O_WRONLY, 0600);
+  if (file_descriptor < 0)
+  {
+    LOG(WARNING) << "can't open block file.";
+    return;
+  }
+
+  ::capnp::MallocMessageBuilder message;
+  ::block_serialization::BlockMap::Builder blockMap = message.initRoot<::block_serialization::BlockMap>();
+
+  unsigned int num_voxel_arrays = 0;
+  for (auto &&block_ :block_map)
+  {
+    for (auto voxel_array : block_.second.voxel_arrays)
+    {
+      if (voxel_array)
+        num_voxel_arrays++;
+    }
+  }
+
+  auto voxel_arrays = blockMap.initVoxelArrays(num_voxel_arrays);
+  auto blocks = blockMap.initBlocks().initEntries(static_cast<unsigned int>(block_map.size()));
+
+  int voxel_array_count = 0;
+  for (auto &&block_ :block_map)
+  {
+    auto map_entry = blocks[0];
+    auto coordinate = map_entry.getKey();
+    coordinate.setX(0);
+    coordinate.setY(0);
+    coordinate.setZ(0);
+
+    auto block_voxel_arrays = map_entry.getValue().initVoxelArrays(6);
+    int d = 0;
+    for (auto voxel_array_ : block_.second.voxel_arrays)
+    {
+      if (voxel_array_)
+      {
+        block_voxel_arrays.set(d, voxel_array_count);
+
+        auto voxel_array = voxel_arrays[voxel_array_count];
+        auto sdfs = voxel_array.initSdf(BLOCK_SIZE);
+        auto weights = voxel_array.initWeight(BLOCK_SIZE);
+        int v = 0;
+        for (auto &voxel : voxel_array_->voxels)
+        {
+          sdfs.set(v, voxel.sdf);
+          weights.set(v, voxel.inv_sigma2);
+          v++;
+        }
+        voxel_array_count++;
+      } else
+      {
+        block_voxel_arrays.set(d, FREE_PTR);
+      }
+      d++;
+    }
+  }
+
+  ::capnp::writePackedMessageToFd(file_descriptor, message);
+
+  close(file_descriptor);
 }
 
 
@@ -304,7 +376,6 @@ BlockMap LoggingEngine::RecordBlockToMemory(
         checkCudaErrors(cudaMemcpy(block.voxel_arrays[direction], addr,
                                    sizeof(VoxelArray),
                                    cudaMemcpyDeviceToHost));
-
       }
     }
     block_map.emplace(pos, block);

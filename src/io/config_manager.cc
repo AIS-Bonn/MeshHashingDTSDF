@@ -105,7 +105,7 @@ void LoadICL(std::string               dataset_path,
     color_image_list.push_back(dataset_path + "/" + color_image_name);
   }
 
-  std::ifstream traj_stream(dataset_path + "livingRoom3n.gt.freiburg");
+  std::ifstream traj_stream(dataset_path + "trajectory.txt");
   std::string ts_img, img_path, ts_gt;
   float tx, ty, tz, qx, qy, qz, qw;
   float4x4 rTl;

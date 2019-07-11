@@ -286,7 +286,7 @@ static void VertexExtractionKernel(
 
     // Determine MeshUnit responsible for edge
     uint4 edge_cube_owner_offset = kEdgeOwnerCubeOffset[i];
-    MeshUnit &mesh_unit = GetMeshUnitRef(
+    MeshUnit *mesh_unit = GetMeshUnitRef(
         entry,
         voxel_pos + make_int3(edge_cube_owner_offset.x,
                               edge_cube_owner_offset.y,
@@ -294,13 +294,16 @@ static void VertexExtractionKernel(
         blocks, hash_table,
         geometry_helper);
 
+    if (not mesh_unit)
+    	continue;
+
     if (surface_offsets.x > MINF)
     { // If surface pointing towards first endpoint exists
       float3 vertex_pos = p[edge_endpoint_vertices.x]
                           + surface_offsets.x * (p[edge_endpoint_vertices.y] - p[edge_endpoint_vertices.x]);
       // Store vertex
       AllocateVertexWithMutex(
-          mesh_unit,
+          *mesh_unit,
           edge_cube_owner_offset.w,
           vertex_pos,
           mesh,
@@ -314,7 +317,7 @@ static void VertexExtractionKernel(
                           + surface_offsets.y * (p[edge_endpoint_vertices.y] - p[edge_endpoint_vertices.x]);
       // Store vertex
       AllocateVertexWithMutex(
-          mesh_unit,
+          *mesh_unit,
           edge_cube_owner_offset.w +
           3,  // surface facing towards second endpoint, store in latter triplet of vertex pointers
           vertex_pos,
@@ -589,7 +592,7 @@ static void TriangleExtractionKernel(
         }
 
         uint4 edge_owner_cube_offset = kEdgeOwnerCubeOffset[i];
-        MeshUnit &mesh_unit = GetMeshUnitRef(
+        MeshUnit *mesh_unit = GetMeshUnitRef(
             entry,
             voxel_pos + make_int3(edge_owner_cube_offset.x,
                                   edge_owner_cube_offset.y,
@@ -598,8 +601,11 @@ static void TriangleExtractionKernel(
             hash_table,
             geometry_helper);
 
-        vertex_ptrs[i] = mesh_unit.GetVertex(edge_owner_cube_offset.w + ptr_offset);
-        mesh_unit.ResetMutexes();
+        if (not mesh_unit)
+        	return;
+
+        vertex_ptrs[i] = mesh_unit->GetVertex(edge_owner_cube_offset.w + ptr_offset);
+        mesh_unit->ResetMutexes();
       }
     }
 
@@ -620,10 +626,8 @@ static void TriangleExtractionKernel(
       {
         mesh.ReleaseTriangleVertexReferences(mesh.triangle(triangle_ptr));
       }
-      this_mesh_unit.triangle_ptrs[i + ptr_offset] = triangle_ptr;
-
-
-      if (vertex_ptrs[kTriangleVertexEdge[mc_index][t + 0]] < 0 or
+      if (triangle_ptr == FREE_PTR or
+          vertex_ptrs[kTriangleVertexEdge[mc_index][t + 0]] < 0 or
           vertex_ptrs[kTriangleVertexEdge[mc_index][t + 1]] < 0 or
           vertex_ptrs[kTriangleVertexEdge[mc_index][t + 2]] < 0)
       {
@@ -631,6 +635,9 @@ static void TriangleExtractionKernel(
         // (This is expected behavior from combining neighboring marching cubes indices)
         continue;
       }
+
+      this_mesh_unit.triangle_ptrs[i + ptr_offset] = triangle_ptr;
+
       mesh.AssignTriangleVertexReferences(
           mesh.triangle(triangle_ptr),
           make_int3(vertex_ptrs[kTriangleVertexEdge[mc_index][t + 0]],
@@ -679,7 +686,6 @@ static void RecycleTrianglesKernel(
       if (triangle_ptr == FREE_PTR) continue;
 
       // Clear ref_count of its pointed vertices
-      mesh.ReleaseTriangleVertexReferences(mesh.triangle(triangle_ptr));
       mesh.FreeTriangle(triangle_ptr);
       mesh_unit.triangle_ptrs[i] = FREE_PTR;
     }

@@ -1,3 +1,4 @@
+#include "core/block.h"
 #include "core/cuda_memory_heap.h"
 #include "cuda_memory_heap.h"
 
@@ -23,12 +24,17 @@ void ResetHeapKernel(uint *heap, T *elements, int max_count)
 
 template<typename T>
 __device__
-uint CudaMemoryHeap<T>::AllocElement()
+int CudaMemoryHeap<T>::AllocElement()
 {
-  uint addr = atomicSub(heap_counter_, 1);
+  int addr = atomicSub(heap_counter_, 1);
   if (addr < MEMORY_LIMIT)
   {
-    printf("WARNING %s heap out of memory: %d/%d left\n", __PRETTY_FUNCTION__, addr, heap_[addr]);
+    printf("WARNING %s heap out of memory: %d left\n", __PRETTY_FUNCTION__, addr);
+    if (addr < 0)
+    {
+      atomicAdd(heap_counter_, 1);
+      return FREE_PTR;
+    }
   }
   return heap_[addr];
 }
@@ -37,7 +43,7 @@ template<typename T>
 __device__
 void CudaMemoryHeap<T>::FreeElement(const uint ptr)
 {
-  uint addr = atomicAdd(heap_counter_, 1) + 1;
+  int addr = atomicAdd(heap_counter_, 1) + 1;
   heap_[addr] = ptr;
 }
 
@@ -102,3 +108,5 @@ void CudaMemoryHeap<T>::Free()
 {
 
 }
+
+template class CudaMemoryHeap<VoxelArray>;

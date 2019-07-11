@@ -6,7 +6,7 @@ set(OpenGL_GL_PREFERENCE GLVND)
 #----------
 # C++ version setting
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -Wall -g -ggdb")
+SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -Wall -g -ggdb -D_GLIBCXX_DEBUG")
 SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -Wall")
 
 #----------
@@ -16,6 +16,9 @@ LIST(APPEND CUDA_NVCC_FLAGS
   -gencode=arch=compute_50,code=sm_50
   -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored # suppress __host__/__device__ annotation warnings
   )
+
+# Use for debugging
+#SET(CUDA_NVCC_FLAGS --device-debug; ${CUDA_NVCC_FLAGS})
 
 #----------
 # Project variable configurations
@@ -38,11 +41,13 @@ FIND_PACKAGE(OpenCV 3 REQUIRED)
 FIND_PACKAGE(Eigen3 REQUIRED)
 # Parallel computation
 FIND_PACKAGE(CUDA REQUIRED)
+FIND_PACKAGE(Capnp REQUIRED)
 
 # Log utilities
 FIND_PACKAGE(Glog REQUIRED)
 
 FIND_PACKAGE(yaml-cpp REQUIRED)
+INCLUDE_DIRECTORIES(${CAPNP_INCLUDE_DIR})
 INCLUDE_DIRECTORIES(${YAML_CPP_INCLUDE_DIR})
 
 #----------
@@ -156,7 +161,9 @@ CUDA_ADD_LIBRARY(mesh-hashing-cuda
 TARGET_LINK_LIBRARIES(mesh-hashing-cuda
   ${CUDA_DEPENDENCIES}
   ${GLOG_LIBRARIES}
-  ${OpenCV_LIBRARIES})
+  ${OpenCV_LIBRARIES}
+  ${CAPNP_LIBRARIES}
+  )
 
 ### 3. C++
 ADD_LIBRARY(mesh-hashing
@@ -164,6 +171,7 @@ ADD_LIBRARY(mesh-hashing
   ${VH}/engine/logging_engine.cc
   ${VH}/engine/visualizing_engine.cc
 
+  ${VH}/io/block_serialization.capnp.c++
   ${VH}/io/config_manager.cc
   ${VH}/io/mesh_writer.cc
 

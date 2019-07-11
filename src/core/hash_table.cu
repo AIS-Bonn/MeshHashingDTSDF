@@ -114,18 +114,21 @@ void HashTable::AllocEntry(const int3& pos) {
   }
 
 #ifdef HANDLE_COLLISIONS
-  const uint bucket_last_entry_idx = bucket_first_entry_idx + bucket_size - 1;
-  uint i = bucket_last_entry_idx;
-  for (uint iter = 0; iter < linked_list_size; ++iter) {
-    HashEntry curr_entry = entries_[i];
+	const uint bucket_last_entry_idx = bucket_first_entry_idx + bucket_size - 1;
+	uint i = bucket_last_entry_idx;
+  if (empty_entry_idx < 0)
+  {
+		for (uint iter = 0; iter < linked_list_size; ++iter) {
+			HashEntry &curr_entry = entries_[i];
 
-    if (IsPosAllocated(pos, curr_entry)) {
-      return;
-    }
-    if (curr_entry.offset == 0) {
-      break;
-    }
-    i = (bucket_last_entry_idx + curr_entry.offset) % (entry_count);
+			if (IsPosAllocated(pos, curr_entry)) {
+				return;
+			}
+			if (curr_entry.offset == 0) {
+				break;
+			}
+			i = (bucket_last_entry_idx + curr_entry.offset) % (entry_count);
+		}
   }
 #endif
 
@@ -252,17 +255,30 @@ bool HashTable::FreeEntry(const int3& pos) {
   return false;
 }
 
-//! see Teschner et al. (but with correct prime values)
-__device__ uint HashTable::HashBucketForBlockPos(const int3& pos) const {
-  const int p0 = 73856093;
-  const int p1 = 19349669;
-  const int p2 = 83492791;
-
-  int res = ((pos.x * p0) ^ (pos.y * p1) ^ (pos.z * p2))
-            % bucket_count;
-  if (res < 0) res += bucket_count;
-  return (uint) res;
+__device__
+inline int hash(int seed, int value)
+{
+	return (seed * value) % 16235657;
 }
+
+__device__
+__device__ uint HashTable::HashBucketForBlockPos(const int3& blockPos) const {
+	return (hash(11536487, blockPos.x)
+	        + hash(14606887, blockPos.y)
+	        + hash(28491781, blockPos.z)) % bucket_count;
+}
+
+////! see Teschner et al. (but with correct prime values)
+//__device__ uint HashTable::HashBucketForBlockPos(const int3& pos) const {
+//  const int p0 = 73856093;
+//  const int p1 = 19349669;
+//  const int p2 = 83492791;
+//
+//  int res = ((pos.x * p0) ^ (pos.y * p1) ^ (pos.z * p2))
+//            % bucket_count;
+//  if (res < 0) res += bucket_count;
+//  return (uint) res;
+//}
 
 __device__
 bool HashTable::IsPosAllocated(const int3& pos, const HashEntry& hash_entry) const {

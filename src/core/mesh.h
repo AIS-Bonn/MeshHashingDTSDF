@@ -40,17 +40,17 @@ public:
 private:
   bool is_allocated_on_gpu_ = false;
   uint*     vertex_heap_;
-  uint*     vertex_heap_counter_;
+  int*     vertex_heap_counter_;
   Vertex*   vertices;
 
   uint*     triangle_heap_;
-  uint*     triangle_heap_counter_;
+  int*     triangle_heap_counter_;
   Triangle* triangles;
 
 public:
-  __device__ uint AllocVertex();
+  __device__ int AllocVertex();
   __device__ void FreeVertex(uint ptr);
-  __device__ uint AllocTriangle();
+  __device__ int AllocTriangle();
   __device__ void FreeTriangle(uint ptr);
 
   /// Release is NOT always a FREE operation

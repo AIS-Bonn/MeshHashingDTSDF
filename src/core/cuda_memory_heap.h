@@ -23,7 +23,7 @@ public:
   __host__ void CopyPtrsToHost(uint *array, uint &counter);
 
   __device__
-  uint AllocElement();
+  int AllocElement();
 
   __device__
   void FreeElement(const uint ptr);
@@ -33,14 +33,8 @@ public:
 
 private:
   uint *heap_;
-  uint *heap_counter_;
+  int *heap_counter_;
   T *elements_;
   size_t elements_count_;
 };
 
-
-// Explicit instantiation of required templates (Cuda issue)
-#include "core/block.h"
-
-template
-class CudaMemoryHeap<VoxelArray>;

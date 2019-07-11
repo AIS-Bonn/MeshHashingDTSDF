@@ -167,7 +167,7 @@ static void VertexExtractionKernel(
           sdf[edge_endpoint_vertices.y],
           kIsoLevel);
 
-      MeshUnit &mesh_unit = GetMeshUnitRef(
+      MeshUnit *mesh_unit = GetMeshUnitRef(
           entry,
           voxel_pos + make_int3(edge_cube_owner_offset.x,
                                 edge_cube_owner_offset.y,
@@ -175,8 +175,11 @@ static void VertexExtractionKernel(
           blocks, hash_table,
           geometry_helper);
 
+      if (not mesh_unit)
+        continue;
+
       AllocateVertexWithMutex(
-          mesh_unit,
+          *mesh_unit,
           edge_cube_owner_offset.w,
           vertex_pos,
           mesh,
@@ -264,7 +267,7 @@ static void TriangleExtractionKernel(
     {
       uint4 edge_owner_cube_offset = kEdgeOwnerCubeOffset[i];
 
-      MeshUnit &mesh_unit = GetMeshUnitRef(
+      MeshUnit *mesh_unit = GetMeshUnitRef(
           entry,
           voxel_pos + make_int3(edge_owner_cube_offset.x,
                                 edge_owner_cube_offset.y,
@@ -273,15 +276,16 @@ static void TriangleExtractionKernel(
           hash_table,
           geometry_helper);
 
-      vertex_ptrs[i] = mesh_unit.GetVertex(edge_owner_cube_offset.w);
-      mesh_unit.ResetMutexes();
+      if (not mesh_unit)
+        return;
+      vertex_ptrs[i] = mesh_unit->GetVertex(edge_owner_cube_offset.w);
+      mesh_unit->ResetMutexes();
     }
   }
 
   //////////
   /// 3. Assign triangles
-  int i = 0;
-  for (int t = 0;
+  for (int t = 0, i = 0;
        kTriangleVertexEdge[this_mesh_unit.mc_idx[0]][t] != -1;
        t += 3, ++i)
   {
@@ -295,11 +299,16 @@ static void TriangleExtractionKernel(
     }
     this_mesh_unit.triangle_ptrs[i] = triangle_ptr;
 
+    int3 ptrs_ = make_int3(vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.mc_idx[0]][t + 0]],
+                           vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.mc_idx[0]][t + 1]],
+                           vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.mc_idx[0]][t + 2]]);
+
+    if (triangle_ptr == FREE_PTR or ptrs_.x < 0 or ptrs_.y < 0 or ptrs_.z < 0)
+      continue;
+
     mesh.AssignTriangleVertexReferences(
         mesh.triangle(triangle_ptr),
-        make_int3(vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.mc_idx[0]][t + 0]],
-                  vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.mc_idx[0]][t + 1]],
-                  vertex_ptrs[kTriangleVertexEdge[this_mesh_unit.mc_idx[0]][t + 2]]));
+        ptrs_);
     if (!enable_sdf_gradient)
     {
       mesh.ComputeTriangleNormal(mesh.triangle(triangle_ptr));

@@ -13,7 +13,7 @@
 
 
 /**
- * Returns a reference to the MeshUnit corresponding to the given voxel position.
+ * Returns a pointer to the MeshUnit corresponding to the given voxel position.
  * @param curr_entry Hash entry
  * @param voxel_pos Voxel position to find MeshUnit for
  * @param blocks Block array
@@ -22,7 +22,7 @@
  * @return
  */
 __device__
-inline MeshUnit &GetMeshUnitRef(
+inline MeshUnit *GetMeshUnitRef(
     const HashEntry &curr_entry,
     const int3 voxel_pos,
     BlockArray &blocks,
@@ -36,16 +36,17 @@ inline MeshUnit &GetMeshUnitRef(
   if (curr_entry.pos == block_pos)
   {
     uint i = geometry_helper.VectorizeOffset(offset);
-    return blocks[curr_entry.ptr].mesh_units[i];
+    return &blocks[curr_entry.ptr].mesh_units[i];
   } else
   {
     HashEntry entry = hash_table.GetEntry(block_pos);
     if (entry.ptr == FREE_ENTRY)
     {
       printf("GetVoxelRef: should never reach here!\n");
+      return nullptr;
     }
     uint i = geometry_helper.VectorizeOffset(offset);
-    return blocks[entry.ptr].mesh_units[i];
+    return &blocks[entry.ptr].mesh_units[i];
   }
 }
 

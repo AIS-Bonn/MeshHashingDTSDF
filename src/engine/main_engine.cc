@@ -349,13 +349,9 @@ void MainEngine::FinalLog()
   CollectAllBlocks(hash_table_, candidate_entries_);
   Meshing();
   int3 timing;
-  CompressMesh(candidate_entries_,
-               blocks_,
-               mesh_,
-               vis_engine_.compact_mesh(), timing);
   if (log_engine_.enable_ply())
   {
-    log_engine_.WritePly(vis_engine_.compact_mesh());
+    WriteMesh("mesh");
   }
   if (runtime_params_.enable_directional_sdf)
   {
@@ -521,6 +517,7 @@ void MainEngine::StoreBlocks(const std::string &prefix)
       blocks_.GetGPUPtr(), hash_params_.max_block_count,
       candidate_entries_.GetGPUPtr(), candidate_entries_.count());
   log_engine_.WriteFormattedBlocks(block_map, prefix);
+//  log_engine_.WriteProtocolBlocks(block_map, prefix);
 }
 
 HashTable &MainEngine::hash_table()
@@ -546,4 +543,14 @@ GeometryHelper MainEngine::geometry_helper()
 const RuntimeParams &MainEngine::runtime_params() const
 {
   return runtime_params_;
+}
+
+void MainEngine::WriteMesh(const std::string &prefix)
+{
+  int3 timing;
+  CompressMesh(candidate_entries_,
+               blocks_,
+               mesh_,
+               vis_engine_.compact_mesh(), timing);
+  log_engine_.WritePly(vis_engine_.compact_mesh(), prefix + ".ply");
 }

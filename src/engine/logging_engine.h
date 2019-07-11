@@ -54,6 +54,7 @@ public:
   void WriteFormattedBlocks(const BlockMap &blocks, std::string filename);
   BlockMap ReadFormattedBlocks(std::string filename);
   void WriteRawBlocks(const BlockMap &blocks, std::string filename);
+  void WriteProtocolBlocks(const BlockMap &blocks, std::string filename);
   BlockMap ReadRawBlocks(std::string filename);
 
   bool enable_video() {

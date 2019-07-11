@@ -71,7 +71,9 @@ public:
 
   void RecordBlocks(std::string prefix = "");
 
-  void StoreBlocks(const std::string &path);
+  void StoreBlocks(const std::string &prefix);
+
+  void WriteMesh(const std::string &prefix);
 
   void FinalLog();
 

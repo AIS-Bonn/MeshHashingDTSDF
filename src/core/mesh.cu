@@ -13,20 +13,24 @@
 /// Device code
 ////////////////////
 __global__
-void MeshResetVerticesKernel(uint* vertex_heap, Vertex* vertices, int max_vertex_count) {
+void MeshResetVerticesKernel(uint *vertex_heap, Vertex *vertices, int max_vertex_count)
+{
   const uint idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-  if (idx < max_vertex_count) {
+  if (idx < max_vertex_count)
+  {
     vertex_heap[idx] = max_vertex_count - idx - 1;
     vertices[idx].Clear();
   }
 }
 
 __global__
-void MeshResetTrianglesKernel(uint* triangle_heap, Triangle* triangles, int max_triangle_count) {
+void MeshResetTrianglesKernel(uint *triangle_heap, Triangle *triangles, int max_triangle_count)
+{
   const uint idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-  if (idx < max_triangle_count) {
+  if (idx < max_triangle_count)
+  {
     triangle_heap[idx] = max_triangle_count - idx - 1;
     triangles[idx].Clear();
   }
@@ -36,29 +40,33 @@ void MeshResetTrianglesKernel(uint* triangle_heap, Triangle* triangles, int max_
 /// Host code
 ////////////////////
 // Mesh::~Mesh() {
-  //Free();
+//Free();
 //}
 
 __host__
-void Mesh::Alloc(const MeshParams &mesh_params) {
-  if (!is_allocated_on_gpu_) {
+void Mesh::Alloc(const MeshParams &mesh_params)
+{
+  if (!is_allocated_on_gpu_)
+  {
     checkCudaErrors(cudaMalloc(&vertex_heap_,
                                sizeof(uint) * mesh_params.max_vertex_count));
-    checkCudaErrors(cudaMalloc(&vertex_heap_counter_, sizeof(uint)));
+    checkCudaErrors(cudaMalloc(&vertex_heap_counter_, sizeof(int)));
     checkCudaErrors(cudaMalloc(&vertices,
                                sizeof(Vertex) * mesh_params.max_vertex_count));
 
     checkCudaErrors(cudaMalloc(&triangle_heap_,
                                sizeof(uint) * mesh_params.max_triangle_count));
-    checkCudaErrors(cudaMalloc(&triangle_heap_counter_, sizeof(uint)));
+    checkCudaErrors(cudaMalloc(&triangle_heap_counter_, sizeof(int)));
     checkCudaErrors(cudaMalloc(&triangles,
                                sizeof(Triangle) * mesh_params.max_triangle_count));
     is_allocated_on_gpu_ = true;
   }
 }
 
-void Mesh::Free() {
-  if (is_allocated_on_gpu_) {
+void Mesh::Free()
+{
+  if (is_allocated_on_gpu_)
+  {
     checkCudaErrors(cudaFree(vertex_heap_));
     checkCudaErrors(cudaFree(vertex_heap_counter_));
     checkCudaErrors(cudaFree(vertices));
@@ -71,16 +79,19 @@ void Mesh::Free() {
   }
 }
 
-void Mesh::Resize(const MeshParams &mesh_params) {
+void Mesh::Resize(const MeshParams &mesh_params)
+{
   mesh_params_ = mesh_params;
-  if (is_allocated_on_gpu_) {
+  if (is_allocated_on_gpu_)
+  {
     Free();
   }
   Alloc(mesh_params);
   Reset();
 }
 
-void Mesh::Reset() {
+void Mesh::Reset()
+{
   uint val;
 
   val = mesh_params_.max_vertex_count - 1;
@@ -101,7 +112,7 @@ void Mesh::Reset() {
                          / threads_per_block, 1);
     const dim3 block_size(threads_per_block, 1);
 
-    MeshResetVerticesKernel<<< grid_size, block_size >>> (vertex_heap_, vertices,
+    MeshResetVerticesKernel << < grid_size, block_size >> > (vertex_heap_, vertices,
         mesh_params_.max_vertex_count);
     checkCudaErrors(cudaDeviceSynchronize());
     checkCudaErrors(cudaGetLastError());
@@ -113,14 +124,15 @@ void Mesh::Reset() {
                          / threads_per_block, 1);
     const dim3 block_size(threads_per_block, 1);
 
-    MeshResetTrianglesKernel<<<grid_size, block_size>>> (triangle_heap_, triangles,
+    MeshResetTrianglesKernel << < grid_size, block_size >> > (triangle_heap_, triangles,
         mesh_params_.max_triangle_count);
     checkCudaErrors(cudaDeviceSynchronize());
     checkCudaErrors(cudaGetLastError());
   }
 }
 
-uint Mesh::vertex_heap_count() {
+uint Mesh::vertex_heap_count()
+{
   uint vertex_heap_count;
   checkCudaErrors(cudaMemcpy(&vertex_heap_count,
                              vertex_heap_counter_,
@@ -128,7 +140,8 @@ uint Mesh::vertex_heap_count() {
   return vertex_heap_count;
 }
 
-uint Mesh::triangle_heap_count() {
+uint Mesh::triangle_heap_count()
+{
   uint triangle_heap_count;
   checkCudaErrors(cudaMemcpy(&triangle_heap_count,
                              triangle_heap_counter_,
@@ -137,31 +150,49 @@ uint Mesh::triangle_heap_count() {
 }
 
 __device__
-uint Mesh::AllocVertex() {
-  uint addr = atomicSub(&vertex_heap_counter_[0], 1);
-  if (addr < MEMORY_LIMIT) {
-    printf("vertex heap: %d -> %d\n", addr, vertex_heap_[addr]);
+int Mesh::AllocVertex()
+{
+  int addr = atomicSub(&vertex_heap_counter_[0], 1);
+  if (addr < MEMORY_LIMIT)
+  {
+    printf("vertex heap: %d\n", addr, vertex_heap_[addr]);
+    if (addr < 0)
+    {
+      atomicAdd(&vertex_heap_counter_[0], 1);
+      return FREE_PTR;
+    }
   }
   return vertex_heap_[addr];
 }
+
 __device__
-void Mesh::FreeVertex(uint ptr) {
+void Mesh::FreeVertex(uint ptr)
+{
   vertices[ptr].Clear();
   uint addr = atomicAdd(&vertex_heap_counter_[0], 1);
   vertex_heap_[addr + 1] = ptr;
 }
 
 __device__
-uint Mesh::AllocTriangle() {
-  uint addr = atomicSub(&triangle_heap_counter_[0], 1);
-  if (addr < MEMORY_LIMIT) {
-    printf("triangle heap: %d -> %d\n", addr, triangle_heap_[addr]);
+int Mesh::AllocTriangle()
+{
+  int addr = atomicSub(&triangle_heap_counter_[0], 1);
+  if (addr < MEMORY_LIMIT)
+  {
+    printf("triangle heap: %d\n", addr);
+    if (addr < 0)
+    {
+      atomicAdd(&triangle_heap_counter_[0], 1);
+      return FREE_PTR;
+    }
   }
   triangle(triangle_heap_[addr]).Clear();
   return triangle_heap_[addr];
 }
+
 __device__
-void Mesh::FreeTriangle(uint ptr) {
+void Mesh::FreeTriangle(uint ptr)
+{
   ReleaseTriangleVertexReferences(triangle(ptr));
   uint addr = atomicAdd(&triangle_heap_counter_[0], 1);
   triangle_heap_[addr + 1] = ptr;
@@ -173,7 +204,8 @@ void Mesh::FreeTriangle(uint ptr) {
  * @param triangle
  */
 __device__
-void Mesh::ReleaseTriangleVertexReferences(Triangle &triangle) {
+void Mesh::ReleaseTriangleVertexReferences(Triangle &triangle)
+{
   int3 vertex_ptrs = triangle.vertex_ptrs;
   if (vertex_ptrs.x >= 0)
     atomicSub(&vertices[vertex_ptrs.x].ref_count, 1);
@@ -185,7 +217,8 @@ void Mesh::ReleaseTriangleVertexReferences(Triangle &triangle) {
 }
 
 __device__
-void Mesh::AssignTriangleVertexReferences(Triangle &triangle, int3 vertex_ptrs) {
+void Mesh::AssignTriangleVertexReferences(Triangle &triangle, int3 vertex_ptrs)
+{
   triangle.vertex_ptrs = vertex_ptrs;
   atomicAdd(&vertices[vertex_ptrs.x].ref_count, 1);
   atomicAdd(&vertices[vertex_ptrs.y].ref_count, 1);
@@ -193,7 +226,8 @@ void Mesh::AssignTriangleVertexReferences(Triangle &triangle, int3 vertex_ptrs) 
 }
 
 __device__
-void Mesh::ComputeTriangleNormal(Triangle& triangle) {
+void Mesh::ComputeTriangleNormal(Triangle &triangle)
+{
   int3 vertex_ptrs = triangle.vertex_ptrs;
   float3 p0 = vertices[vertex_ptrs.x].pos;
   float3 p1 = vertices[vertex_ptrs.y].pos;
