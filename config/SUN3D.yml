@@ -1,14 +1,18 @@
 %YAML:1.0
 
-#dataset_path:      "/home/splietke/datasets/Zhou/burghers_of_calais/"
-dataset_path:      "/home/splietke/datasets/Zhou/copyroom/"
+#dataset_path:      "/home/splietke/datasets/Zhou/burghers/"
+#dataset_path:      "/home/splietke/datasets/Zhou/copyroom/"
+#dataset_path:      "/home/splietke/datasets/Zhou/cactusgarden/"
+dataset_path:      "/home/splietke/datasets/Zhou/stonewall/"
+#dataset_path:      "/home/splietke/datasets/Zhou/totempole/"
+#dataset_path:      "/home/splietke/datasets/Zhou/lounge/"
 
 # Hash params
 bucket_count:      40000
 bucket_size:       10
 count:             400000
 linked_list_size:  7
-max_block_count:   300000
+max_block_count:   200000
 
 # SDF params
 # SDF params
@@ -32,20 +36,25 @@ max_block_count:   300000
 #truncation_distance_scale: 0.00
 #truncation_distance:       0.08
 
+#voxel_size:                0.025
+#sdf_upper_bound:           4.0
+#truncation_distance_scale: 0.00
+#truncation_distance:       0.1
+
 #voxel_size:                0.03
 #sdf_upper_bound:           4.0
 #truncation_distance_scale: 0.00
 #truncation_distance:       0.12
 
-voxel_size:                0.04
-sdf_upper_bound:           4.0
-truncation_distance_scale: 0.00
-truncation_distance:       0.16
-
-#voxel_size:                0.05
-#sdf_upper_bound:           5.0
+#voxel_size:                0.04
+#sdf_upper_bound:           4.0
 #truncation_distance_scale: 0.00
-#truncation_distance:       0.10
+#truncation_distance:       0.16
+
+voxel_size:                0.05
+sdf_upper_bound:           5.0
+truncation_distance_scale: 0.00
+truncation_distance:       0.20
 
 #voxel_size:                0.12
 #sdf_upper_bound:           4.0

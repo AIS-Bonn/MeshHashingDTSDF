@@ -13,6 +13,41 @@
 ////////////////////
 
 __device__
+inline void CarveVoxel(
+    const int3 &voxel_idx,
+    const size_t voxel_array_idx,
+    const float normalized_depth,
+    const float truncation_distance,
+    const float3 &surface_point_world,
+    const float3 &normal_world,
+    const float4 &normal_camera,
+    const BlockArray &blocks,
+    const SensorParams &sensor_params,
+    const HashTable &hash_table,
+    GeometryHelper &geometry_helper,
+    const bool enable_point_to_plane
+)
+{
+  int3 block_idx = geometry_helper.VoxelToBlock(voxel_idx);
+  uint local_idx = geometry_helper.VectorizeOffset(geometry_helper.VoxelToOffset(block_idx, voxel_idx));
+  Voxel &voxel = blocks.GetVoxelArray(hash_table.GetEntry(block_idx).ptr, voxel_array_idx).voxels[local_idx];
+
+  if (voxel.inv_sigma2 <= 0)
+    return;
+
+  float sdf = 1;
+//  float weight = 1;
+  float weight = fmaxf(geometry_helper.weight_sample *
+                       weight_depth(normalized_depth) *
+                       weight_normal_angle(make_float3(normal_camera)), 1.0f);
+
+  atomicAdd(&voxel.a, weight * sdf);
+  atomicAdd(&voxel.b, weight);
+  atomicAdd(&voxel.num_updates, 1);
+  return;
+}
+
+__device__
 inline void UpdateVoxel(
     const int3 &voxel_idx,
     const size_t voxel_array_idx,
@@ -43,7 +78,7 @@ inline void UpdateVoxel(
 
   float weight = fmaxf(geometry_helper.weight_sample *
                        weight_depth(normalized_depth) *
-//                       weight_voxel_correlation(surface_point_world, voxel_pos_world, truncation_distance) *
+                       //                       weight_voxel_correlation(surface_point_world, voxel_pos_world, truncation_distance) *
                        weight_normal_angle(make_float3(normal_camera)) *
                        weight_direction_compliance(voxel_array_idx, normal_world), 1.0f);
 
@@ -129,6 +164,95 @@ void UpdateRaycastingKernel(
   );
   float directional_weights[N_DIRECTIONS];
   ComputeDirectionWeights(normal_world, directional_weights);
+
+
+  /////////////////////////////////// voxel carving
+#if 0
+//  float3 carving_origin = make_float3(wTc * make_float4(normalize(point_camera_pos) * 0.5, 1));
+  float3 carving_origin = make_float3(wTc *
+                                      make_float4(
+                                          GeometryHelper::ImageReprojectToCamera(ux, uy, 0.5,
+                                                                                 sensor_params.fx, sensor_params.fy,
+                                                                                 sensor_params.cx, sensor_params.cy),
+                                          1));
+  float3 carving_ray_direction = normalize(point_world_pos - carving_origin);
+//  float carving_distance =
+//      length(point_world_pos - carving_origin) - 2 / (-normal_camera.z) * truncation_distance;
+  float carving_distance =
+      length(point_world_pos - carving_origin) - fabs(1.5 / dot(normal_world, carving_ray_direction)) * truncation_distance;
+//  float carving_distance = length(point_world_pos - carving_origin) - truncation_distance;
+
+  BlockTraversal voxel_traversal_carving(
+      carving_origin,
+      carving_ray_direction,
+      carving_distance,
+      geometry_helper.voxel_size);
+  int3 last_block_idx = make_int3(1000000, 1000000, 1000000);
+  int direction_block_exists[6];
+  while (voxel_traversal_carving.HasNextBlock())
+  {
+    if (voxel_traversal_carving.distance > length(point_world_pos - carving_origin))
+      printf("%f / %f (%f)\n", voxel_traversal_carving.distance, length(point_world_pos - carving_origin),
+          carving_distance);
+    int3 voxel_idx = voxel_traversal_carving.GetNextBlock();
+    int3 block_idx = geometry_helper.VoxelToBlock(voxel_idx);
+    if (not(block_idx == last_block_idx))
+    {
+      last_block_idx = block_idx;
+      for (size_t direction = 0; direction < N_DIRECTIONS; direction++)
+        direction_block_exists[direction] = -1;
+    }
+
+    if (runtime_params.enable_directional_sdf)
+    {
+      for (size_t direction = 0; direction < N_DIRECTIONS; direction++)
+      {
+        if (direction_block_exists[direction] == -1)
+        {
+          if (blocks.HasVoxelArray(hash_table.GetEntry(block_idx).ptr, direction))
+            direction_block_exists[direction] = 1;
+          else
+            direction_block_exists[direction] = 0;
+        }
+        if (direction_block_exists[direction] == 0)
+          continue;
+        CarveVoxel(
+            voxel_idx,
+            direction,
+            normalized_depth,
+            truncation_distance,
+            point_world_pos,
+            normal_world,
+            normal_camera,
+            blocks,
+            sensor_params,
+            hash_table,
+            geometry_helper,
+            runtime_params.enable_point_to_plane
+        );
+      }
+    } else
+    {
+      const size_t voxel_array_idx = 0;
+      CarveVoxel(
+          voxel_idx,
+          voxel_array_idx,
+          normalized_depth,
+          truncation_distance,
+          point_world_pos,
+          normal_world,
+          normal_camera,
+          blocks,
+          sensor_params,
+          hash_table,
+          geometry_helper,
+          runtime_params.enable_point_to_plane
+      );
+    }
+
+  }
+#endif
+  //////////////////////////////////
 
   BlockTraversal voxel_traversal(
       ray_origin,

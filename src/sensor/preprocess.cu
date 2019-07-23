@@ -405,8 +405,8 @@ void ComputeNormalMap(
   BilateralFilterKernel << < grid_size, block_size >> > (
       normals_tmp,
           normal_data,
-          2,
-          2,
+          5,
+          5,
           width,
           height
   );

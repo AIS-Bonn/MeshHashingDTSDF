@@ -106,7 +106,7 @@ int main(int argc, char **argv)
 	  main_engine.Mapping(sensor);
     if (args.enable_visualization)
     {
-	    main_engine.Meshing();
+      main_engine.Meshing();
       if (main_engine.Visualize(cTw))
         break;
     }

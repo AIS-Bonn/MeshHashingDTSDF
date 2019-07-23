@@ -15,6 +15,7 @@ set(CUDA_SEPARABLE_COMPILATION ON) # enable splitting code in .h and .cu files (
 LIST(APPEND CUDA_NVCC_FLAGS
   -gencode=arch=compute_50,code=sm_50
   -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored # suppress __host__/__device__ annotation warnings
+  -use_fast_math
   )
 
 # Use for debugging

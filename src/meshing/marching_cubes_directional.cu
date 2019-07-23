@@ -183,7 +183,8 @@ static void VertexExtractionKernel(
   short mc_indices[6];
   short mc_indices_[6];
   float sdf_arrays[6][8];
-  float sdf_weights[8];
+  float3 sdf_gradients[6];
+  float sdf_weights[6];
   bool is_valid[6];
   for (size_t direction = 0; direction < N_DIRECTIONS; direction++)
   {
@@ -191,10 +192,36 @@ static void VertexExtractionKernel(
                                             voxel_pos, direction,
                                             sdf_arrays[direction], sdf_weights[direction],
                                             mc_indices[direction]);
+
     mc_indices_[direction] = mc_indices[direction];
 
     mc_indices[direction] = FilterMCIndexDirection(mc_indices[direction], static_cast<TSDFDirection>(direction),
                                                    sdf_arrays[direction]);
+
+    // Check, if SDF gradient is compliant with direction
+    if (mc_indices[direction] >= 0 and mc_indices[direction] < 255)
+    {
+//      sdf_gradients[direction] = make_float3(0, 0, 0);
+//      for (int i = 0; i < 8; ++i)
+//      {
+//        float3 grad;
+//        GetSpatialSDFGradient(world_pos + make_float3(kVtxOffset[i]) * geometry_helper.voxel_size,
+//                              blocks, direction, hash_table, geometry_helper, &grad);
+//        sdf_gradients[direction] += 0.125 * grad;
+//      }
+
+      GetSpatialSDFGradient(world_pos + make_float3(geometry_helper.voxel_size), blocks,
+          direction, hash_table, geometry_helper, &sdf_gradients[direction]);
+
+//      GetSpatialSDFGradient(world_pos, blocks, direction, hash_table, geometry_helper, &sdf_gradients[direction]);
+      float gradient_direction_compliance = dot(normalize(sdf_gradients[direction]), TSDFDirectionVectors[direction]);
+      sdf_weights[direction] *= gradient_direction_compliance;
+      if (gradient_direction_compliance < direction_weight_threshold)
+      {
+        sdf_weights[direction] = 0;
+        mc_indices[direction] = -1;
+      }
+    }
   }
 
   /// 2) Check compatibility of each pair of mc indices to filter out wrong contours
@@ -217,8 +244,8 @@ static void VertexExtractionKernel(
       { // If any of the compatible directions states, that voxel is in front of surface -> down-weight
         support_weight -= sdf_weights[i] / sdf_weights[direction];
 //        // Hard threshold:
-//        mc_index = 0;
-//        break;
+        mc_index = 0;
+        break;
       } else if (i != direction and MCIndexCompatible(mc_index, mc_indices[i]))
       {
         support_weight += sdf_weights[i] / sdf_weights[direction];
@@ -295,7 +322,7 @@ static void VertexExtractionKernel(
         geometry_helper);
 
     if (not mesh_unit)
-    	continue;
+      continue;
 
     if (surface_offsets.x > MINF)
     { // If surface pointing towards first endpoint exists
@@ -602,7 +629,7 @@ static void TriangleExtractionKernel(
             geometry_helper);
 
         if (not mesh_unit)
-        	return;
+          return;
 
         vertex_ptrs[i] = mesh_unit->GetVertex(edge_owner_cube_offset.w + ptr_offset);
         mesh_unit->ResetMutexes();
