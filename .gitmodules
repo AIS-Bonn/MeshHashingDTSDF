@@ -1,0 +1,3 @@
+[submodule "src/extern/opengl-wrapper"]
+	path = src/extern/opengl-wrapper
+	url = https://theNded@bitbucket.org/theNded/opengl-wrapper.git
