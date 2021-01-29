@@ -71,7 +71,7 @@ void CudaMemoryHeap<T>::Alloc(const size_t number_elements)
 {
   elements_count_ = number_elements;
   LOG(INFO) << "Allocating " << number_elements << " elements of size "
-            << sizeof(T) << " Bytes each => " << sizeof(T) * number_elements << " Bytes in total";
+            << sizeof(T) << " Bytes each => " << sizeof(T) * number_elements / (1024 * 1024)<< " MiB in total";
   checkCudaErrors(cudaMalloc(&elements_, sizeof(T) * number_elements));
   checkCudaErrors(cudaMalloc(&heap_, sizeof(uint) * number_elements));
   checkCudaErrors(cudaMalloc(&heap_counter_, sizeof(uint)));

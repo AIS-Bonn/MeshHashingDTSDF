@@ -17,7 +17,7 @@ update_type: 0
 raycasting_mode: 1
 
 # -----------
-enable_point_to_plane:  0
+enable_point_to_plane:  1
 enable_directional_sdf: 0
 
 enable_sdf_gradient:    1
@@ -30,9 +30,9 @@ enable_bounding_box:    0
 enable_trajectory:      1
 enable_ray_casting:     0
 
-enable_visualization:    1
+enable_visualization:    0
 enable_video_recording:  0
-enable_block_saving:     1
+enable_block_saving:     0
 enable_ply_saving:       1
 
 filename_prefix: "burghers"

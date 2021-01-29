@@ -1,5 +1,9 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.15)
 PROJECT(mesh-hashing C CXX)
+
+LIST(APPEND
+  CMAKE_MODULE_PATH
+  ${PROJECT_SOURCE_DIR}/cmake_modules)
 
 set(OpenGL_GL_PREFERENCE GLVND)
 
@@ -13,10 +17,14 @@ SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -Wall")
 # CUDA compilation settings
 set(CUDA_SEPARABLE_COMPILATION ON) # enable splitting code in .h and .cu files (otherwise linking issues)
 LIST(APPEND CUDA_NVCC_FLAGS
-  -gencode=arch=compute_50,code=sm_50
   -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored # suppress __host__/__device__ annotation warnings
   -use_fast_math
   )
+
+INCLUDE(CUDACheckCompute)
+FOREACH(compute_capability ${CUDA_COMPUTE_CAPABILITY})
+  LIST(APPEND CUDA_NVCC_FLAGS --generate-code arch=compute_${compute_capability},code=sm_${compute_capability})
+ENDFOREACH()
 
 # Use for debugging
 #SET(CUDA_NVCC_FLAGS --device-debug; ${CUDA_NVCC_FLAGS})
@@ -29,9 +37,6 @@ SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 #----------
 # Find packages
 FIND_PACKAGE(PkgConfig)
-LIST(APPEND
-  CMAKE_MODULE_PATH
-  ${PROJECT_SOURCE_DIR}/cmake_modules)
 
 # Graphics dependent
 FIND_PACKAGE(GLFW3 REQUIRED)
@@ -42,6 +47,7 @@ FIND_PACKAGE(OpenCV 3 REQUIRED)
 FIND_PACKAGE(Eigen3 REQUIRED)
 # Parallel computation
 FIND_PACKAGE(CUDA REQUIRED)
+
 FIND_PACKAGE(Capnp REQUIRED)
 
 # Log utilities
@@ -199,24 +205,24 @@ TARGET_LINK_LIBRARIES(reconstruction
   ${OpenCV_LIBRARIES}
   ${GLOG_LIBRARIES})
 
-ADD_EXECUTABLE(slam src/app/slam.cc)
-SET_TARGET_PROPERTIES(slam
-  PROPERTIES
-  COMPILE_DEFINITIONS USE_CUDA_GL)
-TARGET_LINK_LIBRARIES(slam
-  mesh-hashing
-  ${OpenCV_LIBRARIES}
-  ${GLOG_LIBRARIES})
-
-ADD_EXECUTABLE(block_analysis src/app/block_analysis.cc)
-SET_TARGET_PROPERTIES(block_analysis
-  PROPERTIES
-  COMPILE_DEFINITIONS USE_CUDA_GL)
-TARGET_LINK_LIBRARIES(block_analysis
-  gl-util
-  mesh-hashing
-  ${OpenCV_LIBRARIES}
-  ${GLOG_LIBRARIES})
+#ADD_EXECUTABLE(slam src/app/slam.cc)
+#SET_TARGET_PROPERTIES(slam
+#  PROPERTIES
+#  COMPILE_DEFINITIONS USE_CUDA_GL)
+#TARGET_LINK_LIBRARIES(slam
+#  mesh-hashing
+#  ${OpenCV_LIBRARIES}
+#  ${GLOG_LIBRARIES})
+#
+#ADD_EXECUTABLE(block_analysis src/app/block_analysis.cc)
+#SET_TARGET_PROPERTIES(block_analysis
+#  PROPERTIES
+#  COMPILE_DEFINITIONS USE_CUDA_GL)
+#TARGET_LINK_LIBRARIES(block_analysis
+#  gl-util
+#  mesh-hashing
+#  ${OpenCV_LIBRARIES}
+#  ${GLOG_LIBRARIES})
 
 add_subdirectory(test)
 

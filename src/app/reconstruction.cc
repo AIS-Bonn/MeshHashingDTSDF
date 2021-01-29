@@ -86,6 +86,7 @@ int main(int argc, char **argv)
 
   cv::Mat color, depth;
   float4x4 wTc, cTw;
+
   int frame_count = 0;
   while (rgbd_local_sequence.ProvideData(depth, color, wTc, false))
   {

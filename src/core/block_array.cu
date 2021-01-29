@@ -109,7 +109,7 @@ void BlockArray::Alloc(uint block_count)
   {
     block_count_ = block_count;
     LOG(INFO) << "Allocating " << block_count << " blocks of size " << sizeof(Block) << " Bytes => "
-              << sizeof(Block) * block_count << " Bytes in total";
+              << sizeof(Block) * block_count / (1024 * 1024)<< " MiB in total";
     checkCudaErrors(cudaMalloc(&blocks_, sizeof(Block) * block_count));
     is_allocated_on_gpu_ = true;
   }
