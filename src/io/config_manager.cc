@@ -207,14 +207,20 @@ void LoadTUM(std::string dataset_path,
              std::vector<std::string> &depth_image_list,
              std::vector<std::string> &color_image_list,
              std::vector<float4x4>& wTcs) {
-  std::ifstream img_stream(dataset_path + "depth_rgb_associations.txt");
+  std::ifstream img_stream(dataset_path + "/depth_rgb_associations.txt");
+  if (not img_stream.is_open())
+  {
+    LOG(ERROR) << "failed to open \"depth_rgb_associations.txt\". Is the dataset directory "
+               << dataset_path << " correct?";
+    return;
+  }
   std::unordered_map<std::string, std::string> depth_color_correspondence;
   std::string depth_image_name, color_image_name, ts;
   while (img_stream >> ts >> depth_image_name >> ts >> color_image_name) {
     depth_color_correspondence.emplace(depth_image_name, color_image_name);
   }
 
-  std::ifstream traj_stream(dataset_path + "depth_gt_associations.txt");
+  std::ifstream traj_stream(dataset_path + "/depth_gt_associations.txt");
   float tx, ty, tz, qx, qy, qz, qw;
   while (traj_stream >> ts >> depth_image_name
                      >> ts >> tx >> ty >> tz >> qx >> qy >> qz >> qw) {
