@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.10)
 PROJECT(mesh-hashing C CXX)
 
 LIST(APPEND
