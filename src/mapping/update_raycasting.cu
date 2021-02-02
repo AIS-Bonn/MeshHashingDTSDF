@@ -76,11 +76,15 @@ inline void UpdateVoxel(
 
   float3 voxel_pos_world = geometry_helper.VoxelToWorld(voxel_idx);
 
+                     DirectionWeight(DirectionAngle(normal_world, voxel_array_idx));
   float weight = fmaxf(geometry_helper.weight_sample *
                        weight_depth(normalized_depth) *
                        //                       weight_voxel_correlation(surface_point_world, voxel_pos_world, truncation_distance) *
                        weight_normal_angle(make_float3(normal_camera)) *
-                       weight_direction_compliance(voxel_array_idx, normal_world), 1.0f);
+
+//                       DirectionWeight(DirectionAngle(normal_world, voxel_array_idx)),
+                       weight_direction_compliance(voxel_array_idx, normal_world),
+                       1.0f);
 
   float3 observation_ray = voxel_pos_world - surface_point_world;
   float sdf;
@@ -144,17 +148,25 @@ void UpdateRaycastingKernel(
 
   // Traverse voxels in normal's direction through measured surface point
   float3 ray_origin;
-  float3 ray_direction;
+  float3 ray_direction_before;
+  float3 ray_direction_behind;
 
   if (runtime_params.raycasting_mode == RAY_DIRECTION_CAMERA)
   {
     float3 camera_world_pos = make_float3(wTc * make_float4(0, 0, 0, 1));
-    ray_direction = normalize(point_world_pos - camera_world_pos);
-    ray_origin = point_world_pos - truncation_distance * ray_direction;
-  } else // (mode == RAY_DIRECTION_NORMAL)
+    ray_direction_before = ray_direction_behind = normalize(point_world_pos - camera_world_pos);
+    ray_origin = point_world_pos - truncation_distance * ray_direction_before;
+  }
+  if (runtime_params.raycasting_mode == RAY_DIRECTION_POS_CAMERA_NEG_NORMAL)
   {
-    ray_origin = point_world_pos - truncation_distance * normal_world;
-    ray_direction = normal_world;
+    float3 camera_world_pos = make_float3(wTc * make_float4(0, 0, 0, 1));
+    ray_direction_before = normalize(point_world_pos - camera_world_pos);
+    ray_direction_behind = -normal_world;
+    ray_origin = point_world_pos - truncation_distance * ray_direction_before;
+  } else // (runtime_params.raycasting_mode == RAY_DIRECTION_NORMAL)
+  {
+    ray_direction_before = normal_world;
+    ray_origin = point_world_pos - truncation_distance * ray_direction_before;
   }
 
   float normalized_depth = geometry_helper.NormalizeDepth(
@@ -254,21 +266,32 @@ void UpdateRaycastingKernel(
 #endif
   //////////////////////////////////
 
-  BlockTraversal voxel_traversal(
+  BlockTraversal voxel_traversal_before(
       ray_origin,
-      ray_direction,
-      2 * truncation_distance, // 2 * truncation, because it covers both positive and negative range
+      ray_direction_before,
+      truncation_distance,
       geometry_helper.voxel_size);
-  while (voxel_traversal.HasNextBlock())
+  BlockTraversal voxel_traversal_behind(
+      point_world_pos,
+      ray_direction_behind,
+      truncation_distance,
+      geometry_helper.voxel_size);
+  if (voxel_traversal_behind.HasNextBlock()) voxel_traversal_behind.GetNextBlock(); // Skip first voxel to prevent duplicate fusion
+  while (voxel_traversal_before.HasNextBlock() or voxel_traversal_behind.HasNextBlock())
   {
     const size_t voxel_array_idx = 0;
 
-    int3 voxel_idx = voxel_traversal.GetNextBlock();
+    int3 voxel_idx;
+    if (voxel_traversal_before.HasNextBlock())
+      voxel_idx = voxel_traversal_before.GetNextBlock();
+    else
+      voxel_idx = voxel_traversal_behind.GetNextBlock();
+
     if (runtime_params.enable_directional_sdf)
     {
       for (size_t direction = 0; direction < N_DIRECTIONS; direction++)
       {
-        if (directional_weights[direction] > direction_weight_threshold)
+        if (directional_weights[direction] > 0)
         {
           UpdateVoxel(
               voxel_idx,

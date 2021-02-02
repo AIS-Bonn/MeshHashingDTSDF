@@ -214,6 +214,9 @@ static void VertexExtractionKernel(
           direction, hash_table, geometry_helper, &sdf_gradients[direction]);
 
 //      GetSpatialSDFGradient(world_pos, blocks, direction, hash_table, geometry_helper, &sdf_gradients[direction]);
+
+//      sdf_weights[direction] *= DirectionWeight(DirectionAngle(sdf_gradients[direction], direction));
+//      if (sdf_weights[direction] <= 0)
       float gradient_direction_compliance = dot(normalize(sdf_gradients[direction]), TSDFDirectionVectors[direction]);
       sdf_weights[direction] *= gradient_direction_compliance;
       if (gradient_direction_compliance < direction_weight_threshold)

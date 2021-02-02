@@ -10,6 +10,7 @@
 
 __device__
 const static float direction_weight_threshold = 0.3826834323650898f; // approx of sin(pi/8)
+const static float direction_angle_threshold = 0.7 * M_PI_2;
 
 enum class TSDFDirection : std::uint8_t
 {
@@ -42,8 +43,14 @@ const char *TSDFDirectionToString(TSDFDirection direction);
  * @param normal
  * @param weights
  */
-__host__ __device__
+__device__
 void ComputeDirectionWeights(const float3 &normal, float weights[N_DIRECTIONS]);
+
+__device__
+float DirectionWeight(float angle);
+
+__device__
+float DirectionAngle(const float3& normal, size_t direction);
 
 __device__
 short FilterMCIndexDirection(const short mc_index, const TSDFDirection direction, const float sdf[8]);

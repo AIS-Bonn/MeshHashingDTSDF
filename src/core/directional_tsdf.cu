@@ -102,14 +102,41 @@ const char *TSDFDirectionToString(TSDFDirection direction)
       return "LEFT";
     case TSDFDirection::BACKWARD:
       return "BACKWARD";
+    default:
+      return "ERROR/UNKNOWN";
   }
 }
 
+__device__
+float DirectionAngle(const float3& normal, size_t direction)
+{
+  float angleCos = dot(normal, TSDFDirectionVectors[direction]);
+  angleCos = fmaxf(fminf(angleCos, 1), -1);
+  return acos(angleCos);
+}
+
+__device__
+float DirectionWeight(float angle)
+{
+  float width = direction_angle_threshold;
+
+  if (width <= M_PI_4 + 1e-6)
+  {
+    return 1 - fminf(angle / width, 1);
+  }
+
+  width /= M_PI_2;
+  angle /= M_PI_2;
+  return 1 - fminf((fmaxf(angle, 1 - width) - (1 - width)) / (2 * width - 1), 1);
+}
+
+__device__
 void ComputeDirectionWeights(const float3 &normal, float *weights)
 {
   for (size_t i = 0; i < 3; i++)
   {
-    weights[2 * i] = dot(normal, TSDFDirectionVectors[2 * i]);
-    weights[2 * i + 1] = -weights[2 * i]; // opposite direction -> negative value
+    float angle = DirectionAngle(normal, 2 * i);
+    weights[2 * i] = DirectionWeight(angle);
+    weights[2 * i + 1] = DirectionWeight(M_PI - angle); // opposite direction -> negative value
   }
 }

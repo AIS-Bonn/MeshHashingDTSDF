@@ -193,7 +193,7 @@ void UpdateBlocksSimpleDirectionalKernel(
   ComputeDirectionWeights(normal_world, weights);
   for (size_t direction = 0; direction < N_DIRECTIONS; direction++)
   {
-    if (weights[direction] < direction_weight_threshold)
+    if (weights[direction] <= 0)
       continue;
 
     Voxel &voxel = blocks.GetVoxelArray(entry.ptr, direction).voxels[local_idx];

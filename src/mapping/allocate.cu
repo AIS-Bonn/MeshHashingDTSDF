@@ -28,7 +28,7 @@ void AllocBlockArrayKernel(
     float4x4 wTc,
     HashTable hash_table,
     GeometryHelper geometry_helper,
-    bool allocate_along_normal)
+    RuntimeParams runtime_params)
 {
 
   const uint x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -47,53 +47,55 @@ void AllocBlockArrayKernel(
 
   float truncation = geometry_helper.truncate_distance(depth);
 
-  /// 2. Set range where blocks are allocated
-  float3 world_pos_start;
-  float3 world_pos_end;
-  float3 world_ray_dir;
-  float3 normal_world = make_float3(wTc * normal_camera);
-  if (allocate_along_normal)
-  {
-
-    float3 point_camera_pos = geometry_helper.ImageReprojectToCamera(x, y, depth,
-                                                                     sensor_params.fx, sensor_params.fy,
-                                                                     sensor_params.cx, sensor_params.cy);
-    float3 point_world_pos = wTc * point_camera_pos;
-
-    world_ray_dir = normal_world;
-
-    world_pos_start = point_world_pos - world_ray_dir * truncation;
-  } else
-  {
-    float near_depth = fminf(geometry_helper.sdf_upper_bound, depth - truncation);
-    float far_depth = fminf(geometry_helper.sdf_upper_bound, depth + truncation);
-    if (near_depth >= far_depth) return;
-
-    float3 camera_pos_near = geometry_helper.ImageReprojectToCamera(x, y, near_depth,
-                                                                    sensor_params.fx, sensor_params.fy,
-                                                                    sensor_params.cx, sensor_params.cy);
-    float3 camera_pos_far = geometry_helper.ImageReprojectToCamera(x, y, far_depth,
+  float3 point_camera_pos = geometry_helper.ImageReprojectToCamera(x, y, depth,
                                                                    sensor_params.fx, sensor_params.fy,
                                                                    sensor_params.cx, sensor_params.cy);
-    world_pos_start = wTc * camera_pos_near;
-    world_pos_end = wTc * camera_pos_far;
-    world_ray_dir = normalize(world_pos_end - world_pos_start);
+  float3 point_world_pos = wTc * point_camera_pos;
+  float3 normal_world = make_float3(wTc * normal_camera);
+
+  /// 2. Set range where blocks are allocated
+  float3 ray_direction_before;
+  float3 ray_direction_behind;
+  if (runtime_params.raycasting_mode == RAY_DIRECTION_CAMERA)
+  {
+    float3 camera_world_pos = make_float3(wTc * make_float4(0, 0, 0, 1));
+    ray_direction_before = ray_direction_behind = normalize(point_world_pos - camera_world_pos);
   }
+  if (runtime_params.raycasting_mode == RAY_DIRECTION_POS_CAMERA_NEG_NORMAL)
+  {
+    float3 camera_world_pos = make_float3(wTc * make_float4(0, 0, 0, 1));
+    ray_direction_before = normalize(point_world_pos - camera_world_pos);
+    ray_direction_behind = -normal_world;
+  } else // (runtime_params.raycasting_mode == RAY_DIRECTION_NORMAL)
+  {
+    ray_direction_behind = ray_direction_before = -normal_world;
+  }
+
 
   /// 3. Traverse all blocks in truncation range and allocate VoxelArray, if necessary
 
   float directional_weights[N_DIRECTIONS];
   ComputeDirectionWeights(normal_world, directional_weights);
 
-  BlockTraversal voxel_traversal(
-      world_pos_start,
-      world_ray_dir,
-      2 * truncation, // 2 * truncation, because it covers both positive and negative range
-      geometry_helper.voxel_size
-  );
-  while (voxel_traversal.HasNextBlock())
+  BlockTraversal voxel_traversal_before(
+      point_world_pos - truncation * ray_direction_before,
+      ray_direction_before,
+      truncation,
+      geometry_helper.voxel_size);
+  BlockTraversal voxel_traversal_behind(
+      point_world_pos,
+      ray_direction_behind,
+      truncation,
+      geometry_helper.voxel_size);
+  if (voxel_traversal_behind.HasNextBlock()) voxel_traversal_behind.GetNextBlock(); // Skip first voxel to prevent duplicate fusion
+  while (voxel_traversal_before.HasNextBlock() or voxel_traversal_behind.HasNextBlock())
   {
-    int3 voxel_idx = voxel_traversal.GetNextBlock();
+    int3 voxel_idx;
+    if (voxel_traversal_before.HasNextBlock())
+      voxel_idx = voxel_traversal_before.GetNextBlock();
+    else
+      voxel_idx = voxel_traversal_behind.GetNextBlock();
+
     int3 block_idx = geometry_helper.VoxelToBlock(voxel_idx);
     hash_table.AllocEntry(block_idx);
 
@@ -104,7 +106,7 @@ void AllocBlockArrayKernel(
       // set flag to binary mask indicating which directions are affected (for allocating VoxelArrays in the next step)
       for (size_t direction = 0; direction < N_DIRECTIONS; direction++)
       {
-        if (directional_weights[direction] > direction_weight_threshold)
+        if (directional_weights[direction] > 0)
         {
           candidate_entries.flag(entry_idx) |= (1 << direction);
         }
@@ -204,7 +206,7 @@ void AllocateVoxelArrayKernelDirectional(
 
     for (size_t direction = 0; direction < N_DIRECTIONS; direction++)
     {
-      allocate_directions[direction] |= (weights[direction] >= direction_weight_threshold);
+      allocate_directions[direction] |= (weights[direction] > 0);
     }
   }
 
@@ -239,7 +241,7 @@ double AllocBlockArray(
           sensor.sensor_params(), sensor.wTc(),
           main_engine.hash_table(),
           main_engine.geometry_helper(),
-          main_engine.runtime_params().raycasting_mode == 1
+          main_engine.runtime_params()
   );
 
   checkCudaErrors(cudaDeviceSynchronize());
@@ -281,7 +283,6 @@ double AllocVoxelArray(
             main_engine.runtime_params().enable_directional_sdf
     );
   }
-
   checkCudaErrors(cudaDeviceSynchronize());
   checkCudaErrors(cudaGetLastError());
 
