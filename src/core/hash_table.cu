@@ -142,7 +142,7 @@ void HashTable::AllocEntry(const int3& pos) {
       entry.ptr    = Alloc();
       entry.offset = NO_OFFSET;
     }
-//    return;
+    return;
   }
 
 #ifdef HANDLE_COLLISIONS

@@ -1,13 +1,22 @@
-MeshHashing
-------
-Code (partly) for our
-- ICRA paper (**Accepted**): *An Efficient Volumetric Mesh Representation for 
-Real-time Scene Reconstruction using Spatial-hashing*
-- ECCV paper (**Accepted**): *PSDF Fusion: Probabilistic Signed Distance Function for On-the-fly 3D Data Fusion and Scene Reconstruction*
+#MeshHashingDTSDF
 
-**This project is deprecated. It is now being migrated to Open3D with CUDA components. Please refer to [this fork of Open3D](https://github.com/theNded/Open3D/tree/cuda).**
+Accompanying code for our IROS 2019 paper
+```
+@InProceedings{DTSDF_IROS_2019,
+  author    = {M. {Splietker} and S. {Behnke}},
+  title     = {Directional {TSDF}: Modeling Surface Orientation for Coherent Meshes},
+  booktitle = {IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
+  year      = {2019},
+  pages     = {1727--1734}
+}
+```
 
-Installation instructions:
+**This project is deprecated in favor of our [new implementation](https://github.com/AIS-Bonn/DirectionalTSDF)**
+
+This code is a fork of the original [MeshHashing](https://github.com/theNded/MeshHashing) by Dong et al.
+Please make sure to cite our and their corresponding papers, if you use the code.
+
+## Build Instructions:
 ```
 sudo apt install libglfw3-dev ros-melodic-sophus libglm-dev libcapnp-dev
 git submodule update --init --recursive 
@@ -17,10 +26,10 @@ cmake ..
 make 
 ```
 
-You might experience some warnings or errors originating from compiling Eigen with cuda. 
+You might experience some warnings or errors originating from compiling Eigen with CUDA. 
 In that case use a more recent Eigen version (>= 3.3.9).
 
-
+## Usage
 The main program is called `reconstruction` and can be found under `bin/`.
 The program is controlled by the config file `config/args.yml` and accompanying dataset config specified by
 the `dataset_type` field. E.g. `dataset_type: 3` corresponds to the config file `config/TUM3.yml` for datasets in the TUM fr3 format. 
