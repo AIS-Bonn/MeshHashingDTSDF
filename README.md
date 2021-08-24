@@ -1,4 +1,4 @@
-#MeshHashingDTSDF
+# MeshHashingDTSDF
 
 Accompanying code for our IROS 2019 paper
 ```
