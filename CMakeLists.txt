@@ -1,11 +1,13 @@
 cmake_minimum_required(VERSION 3.10)
 PROJECT(mesh-hashing C CXX)
 
+#SET(CUDA_TOOLKIT_ROOT_DIR "/usr/local/cuda-9.2")
+#SET(OpenCV_DIR "/usr/local/share/OpenCV")
 LIST(APPEND
   CMAKE_MODULE_PATH
   ${PROJECT_SOURCE_DIR}/cmake_modules)
 
-set(OpenGL_GL_PREFERENCE GLVND)
+SET(OpenGL_GL_PREFERENCE GLVND)
 
 #----------
 # C++ version setting

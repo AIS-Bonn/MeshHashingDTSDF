@@ -17,6 +17,9 @@ This code is a fork of the original [MeshHashing](https://github.com/theNded/Mes
 Please make sure to cite our and their corresponding papers, if you use the code.
 
 ## Build Instructions:
+
+Because the code used GPU accelerated code, it requires OpenCV to be build with `WITH_CUDA=ON`. You may need to set the `OpenCV_DIR` variable in CMakeLists.txt.
+
 ```
 sudo apt install libglfw3-dev ros-melodic-sophus libglm-dev libcapnp-dev
 git submodule update --init --recursive 
@@ -30,6 +33,8 @@ You might experience some warnings or errors originating from compiling Eigen wi
 In that case use a more recent Eigen version (>= 3.3.9).
 
 ## Usage
-The main program is called `reconstruction` and can be found under `bin/`.
-The program is controlled by the config file `config/args.yml` and accompanying dataset config specified by
-the `dataset_type` field. E.g. `dataset_type: 3` corresponds to the config file `config/TUM3.yml` for datasets in the TUM fr3 format. 
+```
+cd bin
+./reconstruction
+```
+The program is controlled by the config file `config/args.yml` and accompanying dataset config specified by the `dataset_type` field. E.g. `dataset_type: 3` corresponds to the config file `config/TUM3.yml` for datasets in the TUM fr3 format.
